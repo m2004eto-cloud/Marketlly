@@ -14,7 +14,7 @@ const PostAd = lazy(() => import("./components/PostAd").then((m) => ({ default: 
 const AdminPanel = lazy(() => import("./components/AdminPanel").then((m) => ({ default: m.AdminPanel })));
 
 type Page = "landing" | "auth" | "post" | "browse" | "detail" | "admin";
-type User = { name: string; role: "customer" | "dealer" | "admin"; phone?: string } | null;
+type User = { name: string; role: "customer" | "dealer" | "admin" } | null;
 
 function PageFallback() {
   return (

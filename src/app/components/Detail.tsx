@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  ArrowLeft, MapPin, Heart, Shield, Phone, MessageCircle, Share2, Mail, Flag,
+  ArrowLeft, MapPin, Heart, Shield, Phone, Share2, Mail, Flag,
   ChevronLeft, ChevronRight, Check, Award, BadgeCheck, Clock, Eye, Calendar,
   Gauge, Settings as SettingsIcon, Fuel, Palette, Info, AlertTriangle,
   Calculator, ChevronRight as ChevronRightIcon, Building2,
@@ -301,9 +301,6 @@ export function Detail({ id, onBack, onOpen }: Props) {
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-2">
             <button onClick={() => setShowPhone(true)} className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700">
               <Phone className="size-4" /> {showPhone ? "+971 50 123 4567" : "Show phone number"}
-            </button>
-            <button onClick={() => toast.success("WhatsApp opened")} className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#25D366] text-white hover:opacity-95">
-              <MessageCircle className="size-4" /> WhatsApp
             </button>
             <button onClick={() => toast("Opening chat…")} className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-slate-900 dark:bg-white dark:text-slate-900 text-white hover:opacity-90">
               <Mail className="size-4" /> {t("browse.chat")}

@@ -382,11 +382,10 @@ export function AdminPanel({ onBack, admin }: Props) {
               <h3 className="tracking-tight">Platform settings</h3>
               {[
                 { label: "Auto-approve dealer listings", desc: "Skip manual review for verified dealers." },
-                { label: "Require phone verification", desc: "All new accounts must verify phone." },
                 { label: "Allow guest browsing", desc: "Visitors can browse without login." },
                 { label: "Maintenance mode", desc: "Temporarily disable new postings." },
               ].map((s, i) => (
-                <Toggle key={s.label} label={s.label} desc={s.desc} initial={i < 2} />
+                <Toggle key={s.label} label={s.label} desc={s.desc} initial={i < 1} />
               ))}
               <button onClick={() => toast.success("Settings saved")} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">
                 Save changes
