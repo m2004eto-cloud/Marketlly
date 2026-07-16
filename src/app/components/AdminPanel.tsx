@@ -7,7 +7,7 @@ import {
   Wand2, Car, Smartphone, MapPin, MessageCircle, Image as ImageIcon, Heart, MousePointerClick, Gavel,
   ChevronRight, X, Edit3, Shield, Plus, Mail, Phone, Calendar, Download, Bell,
   Layers, Monitor, Sliders, Info, UserPlus, CreditCard, Percent, Landmark, Package,
-  RefreshCw, Receipt, Briefcase,
+  RefreshCw, Receipt,
 } from "lucide-react";
 import { toast } from "sonner";
 import { HeaderControls } from "./HeaderControls";
@@ -691,11 +691,7 @@ function UsersSection({ users, allUsers, scopeLabel, variant = "user", onUpdateU
                 {[
                   { label: "Browse categories", keys: [
                     { key: "canBrowseMotors" as const, label: "Motors", icon: Car },
-                    { key: "canBrowseProperty" as const, label: "Property", icon: Building2 },
-                    { key: "canBrowseJobs" as const, label: "Jobs", icon: Briefcase },
                     { key: "canBrowseClassifieds" as const, label: "Classifieds", icon: Tag },
-                    { key: "canBrowseFurniture" as const, label: "Furniture", icon: Package },
-                    { key: "canBrowseMobiles" as const, label: "Mobiles", icon: Smartphone },
                     { key: "canBrowseAuctions" as const, label: "Auctions", icon: Gavel },
                     { key: "canViewPricing" as const, label: "View Pricing", icon: DollarSign },
                   ]},

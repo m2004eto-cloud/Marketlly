@@ -1,19 +1,14 @@
 import { useState } from "react";
 import {
   Search, MapPin, Bell, BookmarkCheck, Heart, MessageCircle, UserCog, X,
-  Car, Tag, ArrowRight, Smartphone, Gavel, Flame,
+  Car, Tag, ArrowRight, Gavel, Flame,
   ChevronDown, User, Globe, FileText, BadgeCheck, Calendar, Wrench, Bookmark, Settings, LogOut, ShieldCheck,
-  Home, Briefcase, Sofa,
 } from "lucide-react";
 import { useAuction, getStatus, useCountdown } from "../AuctionContext";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { HeaderControls } from "./HeaderControls";
 import { MotorsMenu } from "./MotorsMenu";
 import { ClassifiedsMenu } from "./ClassifiedsMenu";
-import { MobilesMenu } from "./MobilesMenu";
-import { FurnitureMenu } from "./FurnitureMenu";
-import { JobsMenu } from "./JobsMenu";
-import { PropertyMenu } from "./PropertyMenu";
 import { useApp } from "../AppContext";
 import { useAuth } from "../AuthContext";
 import { useTranslation } from "react-i18next";
@@ -36,16 +31,11 @@ const cityImg =
 const popular: { id: string; label: string; icon: typeof Car; category: string; items: string[] }[] = [
   { id: "motors", label: "Motors", icon: Car, category: "motors", items: ["Used Cars", "Rental Cars", "New Cars", "Export Cars"] },
   { id: "classifieds", label: "Classifieds", icon: Tag, category: "classifieds", items: ["Electronics", "Computers & Networking", "Mobile Phones & Tablets", "Cameras & Imaging"] },
-  { id: "mobiles", label: "Mobile Phones & Tablets", icon: Smartphone, category: "classifieds", items: ["Mobile Phones", "Mobile Phone & Tablet Accessories", "Tablets", "Other Mobile Phones & Tablets"] },
 ];
 
 const navCats = [
   { id: "motors", label: "Motors", badge: "" },
-  { id: "property", label: "Property", badge: "" },
-  { id: "jobs", label: "Jobs", badge: "" },
   { id: "classifieds", label: "Classifieds", badge: "" },
-  { id: "furniture", label: "Furniture", badge: "" },
-  { id: "mobiles", label: "Mobiles & Tablets", badge: "" },
   { id: "auction", label: "Cars Auction", badge: "LIVE" },
 ];
 
@@ -134,10 +124,6 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
   const [tab, setTab] = useState("All");
   const [motorsOpen, setMotorsOpen] = useState(false);
   const [classifiedsOpen, setClassifiedsOpen] = useState(false);
-  const [mobilesOpen, setMobilesOpen] = useState(false);
-  const [furnitureOpen, setFurnitureOpen] = useState(false);
-  const [jobsOpen, setJobsOpen] = useState(false);
-  const [propertyOpen, setPropertyOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
   const categoryAllowed = (id: string) => {
@@ -145,10 +131,6 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
     const map: Record<string, Parameters<typeof can>[0]> = {
       motors: "canBrowseMotors",
       classifieds: "canBrowseClassifieds",
-      mobiles: "canBrowseMobiles",
-      furniture: "canBrowseFurniture",
-      jobs: "canBrowseJobs",
-      property: "canBrowseProperty",
       auction: "canBrowseAuctions",
     };
     const key = map[id];
@@ -324,50 +306,29 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
             {visibleNavCats.map((c) => {
               const isMotors = c.id === "motors";
               const isClassifieds = c.id === "classifieds";
-              const isMobiles = c.id === "mobiles";
-              const isFurniture = c.id === "furniture";
-              const isJobs = c.id === "jobs";
-              const isProperty = c.id === "property";
               const isAuction = c.id === "auction";
-              const open =
-                (isMotors && motorsOpen) ||
-                (isClassifieds && classifiedsOpen) ||
-                (isMobiles && mobilesOpen) ||
-                (isFurniture && furnitureOpen) ||
-                (isJobs && jobsOpen) ||
-                (isProperty && propertyOpen);
+              const open = (isMotors && motorsOpen) || (isClassifieds && classifiedsOpen);
               return (
                 <div
                   key={c.id}
-                  className={isMobiles ? "static" : "relative"}
+                  className="relative"
                   onMouseEnter={() => {
                     if (isMotors) setMotorsOpen(true);
                     if (isClassifieds) setClassifiedsOpen(true);
-                    if (isMobiles) setMobilesOpen(true);
-                    if (isFurniture) setFurnitureOpen(true);
-                    if (isJobs) setJobsOpen(true);
-                    if (isProperty) setPropertyOpen(true);
                   }}
                   onMouseLeave={() => {
                     if (isMotors) setMotorsOpen(false);
                     if (isClassifieds) setClassifiedsOpen(false);
-                    if (isMobiles) setMobilesOpen(false);
-                    if (isFurniture) setFurnitureOpen(false);
-                    if (isJobs) setJobsOpen(false);
-                    if (isProperty) setPropertyOpen(false);
                   }}
                 >
                   <button
                     onClick={() => {
                       if (isAuction) { onNavigate("auction"); return; }
-                      onNavigate("browse", { category: c.id === "mobiles" ? "mobiles" : c.id });
+                      onNavigate("browse", { category: c.id });
                     }}
                     className={`flex items-center gap-2 whitespace-nowrap hover:text-blue-600 h-12 ${open ? "text-[#2563eb]" : ""} ${isAuction ? "text-red-600 hover:text-red-700 font-semibold" : ""}`}
                   >
                     {isAuction && <span className="size-1.5 rounded-full bg-red-600 animate-pulse" />}
-                    {isProperty && <Home className="size-3.5 opacity-70" />}
-                    {isJobs && <Briefcase className="size-3.5 opacity-70" />}
-                    {isFurniture && <Sofa className="size-3.5 opacity-70" />}
                     {c.label}
                     {c.badge && !isAuction && <span className="text-xs px-1.5 py-0.5 rounded bg-[#2563eb] text-white">{c.badge}</span>}
                     {isAuction && <span className="text-xs px-1.5 py-0.5 rounded bg-red-600 text-white">{c.badge}</span>}
@@ -377,18 +338,6 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
                   )}
                   {isClassifieds && classifiedsOpen && (
                     <ClassifiedsMenu onPick={(p) => onNavigate("browse", p)} onClose={() => setClassifiedsOpen(false)} />
-                  )}
-                  {isMobiles && mobilesOpen && (
-                    <MobilesMenu onPick={(p) => onNavigate("browse", p)} onClose={() => setMobilesOpen(false)} />
-                  )}
-                  {isFurniture && furnitureOpen && (
-                    <FurnitureMenu onPick={(p) => onNavigate("browse", p)} onClose={() => setFurnitureOpen(false)} />
-                  )}
-                  {isJobs && jobsOpen && (
-                    <JobsMenu onPick={(p) => onNavigate("browse", p)} onClose={() => setJobsOpen(false)} />
-                  )}
-                  {isProperty && propertyOpen && (
-                    <PropertyMenu onPick={(p) => onNavigate("browse", p)} onClose={() => setPropertyOpen(false)} />
                   )}
                 </div>
               );
@@ -412,7 +361,7 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
                 page="Landing"
                 label="Hero Title"
                 multiline
-                defaultValue={`The best place to buy your house, sell your car or find a job in ${city}`}
+                defaultValue={`The best place to buy & sell cars and classifieds in ${city}`}
               />
             </h1>
 

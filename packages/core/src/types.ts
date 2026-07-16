@@ -5,10 +5,6 @@ export type FrontendPermissions = {
   canBrowseMotors: boolean;
   canBrowseClassifieds: boolean;
   canBrowseAuctions: boolean;
-  canBrowseProperty: boolean;
-  canBrowseJobs: boolean;
-  canBrowseFurniture: boolean;
-  canBrowseMobiles: boolean;
   canPostAds: boolean;
   canBidInAuctions: boolean;
   canMessage: boolean;
@@ -49,14 +45,7 @@ export type AuthAccount = {
 
 export type ListingStatus = "pending" | "approved" | "rejected";
 
-export type ListingCategory =
-  | "motors"
-  | "classifieds"
-  | "mobiles"
-  | "property"
-  | "jobs"
-  | "furniture"
-  | string;
+export type ListingCategory = "motors" | "classifieds" | string;
 
 export type Listing = {
   id: number;
@@ -111,10 +100,6 @@ export const DEFAULT_CUSTOMER_PERMISSIONS: FrontendPermissions = {
   canBrowseMotors: true,
   canBrowseClassifieds: true,
   canBrowseAuctions: true,
-  canBrowseProperty: true,
-  canBrowseJobs: true,
-  canBrowseFurniture: true,
-  canBrowseMobiles: true,
   canPostAds: true,
   canBidInAuctions: true,
   canMessage: true,
@@ -146,10 +131,6 @@ export const BANNED_PERMISSIONS: FrontendPermissions = {
   canBrowseMotors: false,
   canBrowseClassifieds: false,
   canBrowseAuctions: false,
-  canBrowseProperty: false,
-  canBrowseJobs: false,
-  canBrowseFurniture: false,
-  canBrowseMobiles: false,
   canPostAds: false,
   canBidInAuctions: false,
   canMessage: false,

@@ -4,7 +4,14 @@ import { ChevronRight } from "lucide-react";
 const cats: { id: string; label: string; sub: { col1: string[]; col2: string[] } }[] = [
   { id: "electronics", label: "Electronics", sub: { col1: ["Home Audio & Turntables", "Televisions", "DVD & Home Theater", "Electronic Accessories", "Gadgets", "Car Electronics", "Projectors", "Mp3 Players and Portable Audio", "Satellite & Cable TV", "Health Electronics", "Smart Home"], col2: ["Wearable Technology", "Other"] } },
   { id: "computers", label: "Computers & Networking", sub: { col1: ["Laptops", "Desktops", "Networking", "Components", "Software"], col2: ["Printers", "Storage", "Other"] } },
-  { id: "mobiles", label: "Mobile Phones & Tablets", sub: { col1: ["Phones", "Tablets", "Accessories"], col2: ["Smartwatches", "Other"] } },
+  {
+    id: "mobiles",
+    label: "Mobile Phones & Tablets",
+    sub: {
+      col1: ["Mobile Phones", "Tablets", "Mobile Phone & Tablet Accessories", "Smartwatches"],
+      col2: ["iPhone", "Samsung", "Other Mobile Phones & Tablets", "Other"],
+    },
+  },
 ];
 
 type Props = {

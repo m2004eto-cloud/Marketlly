@@ -13,10 +13,7 @@ export const SEED_LISTINGS: Omit<Listing, "status">[] = [
   { id: 10, title: "Tesla Model Y Long Range 2024", make: "Tesla", model: "Model Y", price: 215000, location: "Dubai", category: "motors", img: "https://images.unsplash.com/photo-1617788138017-80ad40651399?w=800", verified: true, date: 1, description: "Autopilot, 7-seater, low mileage, full warranty." },
   { id: 11, title: "Chevrolet Corvette C8 2023", make: "Chevrolet", model: "Corvette", price: 425000, location: "Dubai", category: "motors", img: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=800", verified: true, date: 9, description: "Z51 package, magnetic ride control, carbon trim." },
   { id: 12, title: "Toyota Hilux Adventure 2023", make: "Toyota", model: "Hilux", price: 145000, location: "Sharjah", category: "motors", img: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?w=800", verified: false, date: 5, description: "4x4, double cab, diesel, dealer warranty." },
-  { id: 13, title: "iPhone 15 Pro Max 256GB", price: 4800, location: "Abu Dhabi", category: "mobiles", img: "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=400&q=80", verified: true, date: 2, description: "Sealed box, UAE warranty." },
-  { id: 14, title: "3BR Apartment Marina", price: 2200000, location: "Dubai", category: "property", img: "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800", verified: true, date: 3, description: "Sea view, parking, ready to move." },
-  { id: 15, title: "Marketing Manager", price: 18000, location: "Dubai", category: "jobs", img: "https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=800", verified: false, date: 1, description: "Full-time, benefits, visa sponsorship." },
-  { id: 16, title: "Modern Sofa Set", price: 3200, location: "Sharjah", category: "furniture", img: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800", verified: false, date: 4, description: "Barely used L-shape sofa." },
+  { id: 13, title: "iPhone 15 Pro Max 256GB", price: 4800, location: "Abu Dhabi", category: "classifieds", img: "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=400&q=80", verified: true, date: 2, description: "Sealed box, UAE warranty." },
 ];
 
 export function seededListings(): Listing[] {
