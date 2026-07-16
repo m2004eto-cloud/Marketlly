@@ -7,11 +7,20 @@ import {
   Wand2, Car, Smartphone, MapPin, MessageCircle, Image as ImageIcon, Heart, MousePointerClick, Gavel,
   ChevronRight, X, Edit3, Shield, Plus, Mail, Phone, Calendar, Download, Bell,
   Layers, Monitor, Sliders, Info, UserPlus, CreditCard, Percent, Landmark, Package,
-  RefreshCw, Receipt,
+  RefreshCw, Receipt, Briefcase,
 } from "lucide-react";
 import { toast } from "sonner";
 import { HeaderControls } from "./HeaderControls";
-import { listingsApi, type Listing, type ListingStatus as CoreListingStatus } from "@marketly/core";
+import {
+  listingsApi,
+  authApi,
+  DEFAULT_CUSTOMER_PERMISSIONS,
+  DEFAULT_DEALER_PERMISSIONS,
+  BANNED_PERMISSIONS,
+  type Listing,
+  type ListingStatus as CoreListingStatus,
+  type FrontendPermissions,
+} from "@marketly/core";
 import { ElementsEditor } from "./ElementsEditor";
 import { useElements } from "../ElementsContext";
 import { AuctionAdmin } from "./AuctionAdmin";
@@ -32,12 +41,7 @@ type Tab =
 type ListingStatus = CoreListingStatus;
 type AdminListing = Listing & { seller: string; sellerRole: "customer" | "dealer" };
 
-type UserPermissions = {
-  canBrowseMotors: boolean; canBrowseClassifieds: boolean; canBrowseAuctions: boolean;
-  canPostAds: boolean; canBidInAuctions: boolean; canMessage: boolean;
-  canSaveWishlist: boolean; canContactSellers: boolean; canViewPricing: boolean;
-  maxAdsPerMonth: number;
-};
+type UserPermissions = FrontendPermissions;
 
 type AdminUser = {
   id: number; name: string; email: string; phone: string;
@@ -62,24 +66,9 @@ type GlobalFrontendSettings = {
 
 // ─── Permission Presets ───────────────────────────────────────────────────────
 
-const DEFAULT_CUSTOMER_PERMS: UserPermissions = {
-  canBrowseMotors: true, canBrowseClassifieds: true, canBrowseAuctions: true,
-  canPostAds: true, canBidInAuctions: true, canMessage: true,
-  canSaveWishlist: true, canContactSellers: true, canViewPricing: true,
-  maxAdsPerMonth: 5,
-};
-const DEFAULT_DEALER_PERMS: UserPermissions = {
-  canBrowseMotors: true, canBrowseClassifieds: true, canBrowseAuctions: true,
-  canPostAds: true, canBidInAuctions: true, canMessage: true,
-  canSaveWishlist: true, canContactSellers: true, canViewPricing: true,
-  maxAdsPerMonth: 100,
-};
-const BANNED_PERMS: UserPermissions = {
-  canBrowseMotors: false, canBrowseClassifieds: false, canBrowseAuctions: false,
-  canPostAds: false, canBidInAuctions: false, canMessage: false,
-  canSaveWishlist: false, canContactSellers: false, canViewPricing: false,
-  maxAdsPerMonth: 0,
-};
+const DEFAULT_CUSTOMER_PERMS: UserPermissions = { ...DEFAULT_CUSTOMER_PERMISSIONS };
+const DEFAULT_DEALER_PERMS: UserPermissions = { ...DEFAULT_DEALER_PERMISSIONS };
+const BANNED_PERMS: UserPermissions = { ...BANNED_PERMISSIONS };
 
 // ─── Seed Data ────────────────────────────────────────────────────────────────
 
@@ -217,16 +206,45 @@ export function AdminPanel({ onBack, admin, onViewAuction }: Props) {
       toast.success("Listing deleted");
     } else toast.error(res.error);
   };
-  const toggleVerify = (id: number) => { setUsers((us) => us.map((u) => (u.id === id ? { ...u, verified: !u.verified } : u))); toast.success("Verification updated"); };
+  const toggleVerify = (id: number) => {
+    setUsers((us) => {
+      const next = us.map((u) => (u.id === id ? { ...u, verified: !u.verified } : u));
+      const target = next.find((u) => u.id === id);
+      if (target) void authApi.updateAccountFlags(target.email, { verified: target.verified });
+      return next;
+    });
+    toast.success("Verification updated");
+  };
   const toggleBan = (id: number) => {
-    setUsers((us) => us.map((u) => {
-      if (u.id !== id) return u;
-      const nb = !u.banned;
-      return { ...u, banned: nb, permissions: nb ? BANNED_PERMS : (u.role === "dealer" ? DEFAULT_DEALER_PERMS : DEFAULT_CUSTOMER_PERMS) };
-    }));
+    setUsers((us) => {
+      const next = us.map((u) => {
+        if (u.id !== id) return u;
+        const nb = !u.banned;
+        return {
+          ...u,
+          banned: nb,
+          permissions: nb ? BANNED_PERMS : (u.role === "dealer" ? DEFAULT_DEALER_PERMS : DEFAULT_CUSTOMER_PERMS),
+        };
+      });
+      const target = next.find((u) => u.id === id);
+      if (target) {
+        void authApi.updateAccountFlags(target.email, { banned: target.banned });
+        void authApi.updateAccountPermissions(target.email, target.permissions);
+      }
+      return next;
+    });
     toast.success("User status updated");
   };
-  const updateUser = (updated: AdminUser) => { setUsers((us) => us.map((u) => (u.id === updated.id ? updated : u))); toast.success("User updated"); };
+  const updateUser = (updated: AdminUser) => {
+    setUsers((us) => us.map((u) => (u.id === updated.id ? updated : u)));
+    void authApi.updateAccountPermissions(updated.email, updated.permissions);
+    void authApi.updateAccountFlags(updated.email, {
+      banned: updated.banned,
+      verified: updated.verified,
+      name: updated.name,
+    });
+    toast.success("User updated — frontend permissions synced");
+  };
   const resolveReport = (id: number) => { setReports((rs) => rs.map((r) => (r.id === id ? { ...r, status: "resolved" } : r))); toast.success("Report resolved"); };
 
   return (
@@ -382,8 +400,10 @@ export function AdminPanel({ onBack, admin, onViewAuction }: Props) {
           )}
 
           {tab === "dealers" && (
-            <DealersSection
-              dealers={users.filter((u) => u.role === "dealer")}
+            <UsersSection
+              users={users.filter((u) => u.role === "dealer")}
+              scopeLabel="Dealers"
+              variant="dealer"
               onUpdateUser={updateUser}
               onToggleVerify={toggleVerify}
               onToggleBan={toggleBan}
@@ -441,8 +461,9 @@ export function AdminPanel({ onBack, admin, onViewAuction }: Props) {
 
 // ─── Users Section ────────────────────────────────────────────────────────────
 
-function UsersSection({ users, allUsers, scopeLabel, onUpdateUser, onToggleVerify, onToggleBan, listings }: {
+function UsersSection({ users, allUsers, scopeLabel, variant = "user", onUpdateUser, onToggleVerify, onToggleBan, listings }: {
   users: AdminUser[]; allUsers?: AdminUser[]; scopeLabel: string;
+  variant?: "user" | "dealer";
   onUpdateUser: (u: AdminUser) => void; onToggleVerify: (id: number) => void;
   onToggleBan: (id: number) => void; listings: AdminListing[];
 }) {
@@ -551,7 +572,7 @@ function UsersSection({ users, allUsers, scopeLabel, onUpdateUser, onToggleVerif
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3"><RoleBadge role={u.role === "admin" ? "dealer" : u.role} /></td>
+                    <td className="px-4 py-3"><RoleBadge role={u.role} /></td>
                     <td className="px-4 py-3"><KycBadge status={u.kycStatus} /></td>
                     <td className="px-4 py-3 tabular-nums">{u.ads}</td>
                     <td className="px-4 py-3 text-slate-500 text-xs">{u.joined}</td>
@@ -656,18 +677,25 @@ function UsersSection({ users, allUsers, scopeLabel, onUpdateUser, onToggleVerif
 
             {drawerTab === "permissions" && (
               <div className="p-4 space-y-3">
+                <p className="text-xs text-slate-500">
+                  Controls what this {variant === "dealer" ? "dealer" : "user"} can see and do on the frontend.
+                </p>
                 <div className="flex gap-1">
                   {(["customer", "dealer", "banned"] as const).map((p) => (
                     <button key={p} onClick={() => applyPreset(p)}
                       className="flex-1 py-1 text-[11px] rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 capitalize transition">
-                      {p === "banned" ? "🚫 Restrict" : `${p} preset`}
+                      {p === "banned" ? "Restrict" : `${p} preset`}
                     </button>
                   ))}
                 </div>
                 {[
-                  { label: "Content Access", keys: [
-                    { key: "canBrowseMotors" as const, label: "Browse Motors", icon: Car },
-                    { key: "canBrowseClassifieds" as const, label: "Classifieds", icon: Smartphone },
+                  { label: "Browse categories", keys: [
+                    { key: "canBrowseMotors" as const, label: "Motors", icon: Car },
+                    { key: "canBrowseProperty" as const, label: "Property", icon: Building2 },
+                    { key: "canBrowseJobs" as const, label: "Jobs", icon: Briefcase },
+                    { key: "canBrowseClassifieds" as const, label: "Classifieds", icon: Tag },
+                    { key: "canBrowseFurniture" as const, label: "Furniture", icon: Package },
+                    { key: "canBrowseMobiles" as const, label: "Mobiles", icon: Smartphone },
                     { key: "canBrowseAuctions" as const, label: "Auctions", icon: Gavel },
                     { key: "canViewPricing" as const, label: "View Pricing", icon: DollarSign },
                   ]},
@@ -678,13 +706,19 @@ function UsersSection({ users, allUsers, scopeLabel, onUpdateUser, onToggleVerif
                     { key: "canSaveWishlist" as const, label: "Wishlist", icon: Heart },
                     { key: "canContactSellers" as const, label: "Contact Sellers", icon: Phone },
                   ]},
+                  { label: "Dealer frontend tools", keys: [
+                    { key: "canAccessDealerTools" as const, label: "Dealer tools", icon: Building2 },
+                    { key: "canFeatureListings" as const, label: "Feature listings", icon: Sparkles },
+                    { key: "canBulkManageAds" as const, label: "Bulk manage ads", icon: Layers },
+                    { key: "showVerifiedBadge" as const, label: "Show verified badge", icon: ShieldCheck },
+                  ]},
                 ].map((section) => (
                   <div key={section.label}>
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">{section.label}</p>
                     <div className="space-y-1">
                       {section.keys.map(({ key, label, icon: Icon }) => (
                         <PermToggle key={key} icon={Icon} label={label}
-                          value={editingUser.permissions[key] as boolean}
+                          value={Boolean(editingUser.permissions[key])}
                           onChange={(v) => updatePerm(key, v)} />
                       ))}
                     </div>
@@ -756,119 +790,6 @@ function UsersSection({ users, allUsers, scopeLabel, onUpdateUser, onToggleVerif
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-// ─── Dealers Section ──────────────────────────────────────────────────────────
-
-function DealersSection({ dealers, onUpdateUser, onToggleVerify, onToggleBan, listings }: {
-  dealers: AdminUser[]; onUpdateUser: (u: AdminUser) => void;
-  onToggleVerify: (id: number) => void; onToggleBan: (id: number) => void;
-  listings: AdminListing[];
-}) {
-  const [searchQ, setSearchQ] = useState("");
-  const filtered = dealers.filter((d) => !searchQ || d.name.toLowerCase().includes(searchQ.toLowerCase()) || d.email.toLowerCase().includes(searchQ.toLowerCase()));
-
-  return (
-    <div className="space-y-4">
-      {/* Dealer KPIs */}
-      <div className="grid grid-cols-4 gap-3">
-        {[
-          { label: "Total Dealers", value: dealers.length, icon: Building2, color: "violet" },
-          { label: "Verified", value: dealers.filter((d) => d.verified).length, icon: ShieldCheck, color: "emerald" },
-          { label: "KYC Pending", value: dealers.filter((d) => d.kycStatus === "pending").length, icon: Clock, color: "amber" },
-          { label: "Total Ads", value: dealers.reduce((s, d) => s + d.ads, 0), icon: FileText, color: "blue" },
-        ].map((k) => {
-          const bgMap: Record<string, string> = { violet: "bg-violet-50 dark:bg-violet-950/30", emerald: "bg-emerald-50 dark:bg-emerald-950/30", amber: "bg-amber-50 dark:bg-amber-950/30", blue: "bg-blue-50 dark:bg-blue-950/30" };
-          const txMap: Record<string, string> = { violet: "text-violet-600", emerald: "text-emerald-600", amber: "text-amber-600", blue: "text-blue-600" };
-          return (
-            <div key={k.label} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-3 flex items-center gap-3">
-              <span className={`size-9 rounded-lg ${bgMap[k.color]} flex items-center justify-center`}>
-                <k.icon className={`size-4 ${txMap[k.color]}`} />
-              </span>
-              <div>
-                <p className="text-xl font-bold tabular-nums">{k.value}</p>
-                <p className="text-xs text-slate-500">{k.label}</p>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
-        <div className="px-4 py-2.5 border-b border-slate-100 dark:border-slate-800 flex gap-2 items-center">
-          <Search className="size-4 text-slate-400" />
-          <input value={searchQ} onChange={(e) => setSearchQ(e.target.value)} placeholder="Search dealers…"
-            className="flex-1 text-sm bg-transparent outline-none" />
-          <button onClick={() => toast("Creating dealer account…")}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 transition ms-auto">
-            <UserPlus className="size-3.5" /> Add Dealer
-          </button>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 text-xs uppercase tracking-wide">
-              <tr>
-                <th className="text-start px-4 py-2.5">Dealer</th>
-                <th className="text-start px-4 py-2.5">Location</th>
-                <th className="text-start px-4 py-2.5">KYC</th>
-                <th className="text-start px-4 py-2.5">Total Ads</th>
-                <th className="text-start px-4 py-2.5">Active Ads</th>
-                <th className="text-start px-4 py-2.5">Member Since</th>
-                <th className="text-start px-4 py-2.5">Status</th>
-                <th className="text-end px-4 py-2.5">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((d) => {
-                const dealerAds = listings.filter((l) => l.seller === d.name);
-                const activeAds = dealerAds.filter((l) => l.status === "approved").length;
-                return (
-                  <tr key={d.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className={`size-10 rounded-lg flex items-center justify-center font-bold text-sm ${d.verified ? "bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300" : "bg-slate-100 text-slate-600 dark:bg-slate-800"}`}>
-                          {d.name.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-semibold flex items-center gap-1">
-                            {d.name}
-                            {d.verified && <ShieldCheck className="size-3.5 text-violet-500" />}
-                          </p>
-                          <p className="text-xs text-slate-500">{d.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-400 flex items-center gap-1.5 mt-3"><MapPin className="size-3.5" />{d.location}</td>
-                    <td className="px-4 py-3"><KycBadge status={d.kycStatus} /></td>
-                    <td className="px-4 py-3 tabular-nums font-medium">{d.ads}</td>
-                    <td className="px-4 py-3 tabular-nums text-emerald-600 font-semibold">{activeAds}</td>
-                    <td className="px-4 py-3 text-slate-500 text-xs">{d.joined}</td>
-                    <td className="px-4 py-3">
-                      {d.banned
-                        ? <span className="text-xs px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-medium">Banned</span>
-                        : <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">Active</span>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-1">
-                        {!d.verified && d.kycStatus === "pending" && (
-                          <button onClick={() => { onToggleVerify(d.id); toast.success(`${d.name} verified`); }}
-                            className="text-xs px-2 py-1 rounded border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition">Verify KYC</button>
-                        )}
-                        <IconBtn title={d.banned ? "Unban" : "Ban"} tone={d.banned ? "success" : "danger"} onClick={() => onToggleBan(d.id)}>
-                          <Ban className="size-4" />
-                        </IconBtn>
-                        <IconBtn title="View profile" onClick={() => toast(`Opening ${d.name} profile`)}><Eye className="size-4" /></IconBtn>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
     </div>
   );
 }
@@ -1282,7 +1203,10 @@ function ScopeButton({ label, active, onClick, icon: Icon, count }: { label: str
   );
 }
 
-function RoleBadge({ role }: { role: "customer" | "dealer" }) {
+function RoleBadge({ role }: { role: "customer" | "dealer" | "admin" }) {
+  if (role === "admin") {
+    return <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-medium"><ShieldCheck className="size-3" /> Admin</span>;
+  }
   return role === "dealer"
     ? <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300 font-medium"><Building2 className="size-3" /> Dealer</span>
     : <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 font-medium"><UserIcon className="size-3" /> Customer</span>;

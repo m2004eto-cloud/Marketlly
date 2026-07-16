@@ -8,10 +8,18 @@ import { z } from "zod";
 import { HeaderControls } from "./HeaderControls";
 import { Editable } from "./Editable";
 
-type Role = "customer" | "dealer" | "admin";
+type SignupRole = "customer" | "dealer";
 type Props = {
   onBack: () => void;
-  onLogin: (user: { name: string; role: Role; email: string; password: string }) => void | Promise<void>;
+  onSignIn: (input: { email: string; password: string }) => Promise<{ ok: boolean; error?: string; role?: string }>;
+  onSignUp: (input: {
+    email: string;
+    password: string;
+    name: string;
+    role: SignupRole;
+    tradeLicense?: string;
+    vatTrn?: string;
+  }) => Promise<{ ok: boolean; error?: string; role?: string }>;
 };
 
 const baseSchema = z.object({
@@ -22,7 +30,7 @@ const baseSchema = z.object({
   vatTrn: z.string().optional(),
 });
 
-const makeSchema = (mode: "signin" | "signup", role: Role) =>
+const makeSchema = (mode: "signin" | "signup", role: SignupRole) =>
   baseSchema.superRefine((data, ctx) => {
     if (mode === "signup") {
       if (!data.name || data.name.trim().length < 2) {
@@ -41,10 +49,10 @@ const makeSchema = (mode: "signin" | "signup", role: Role) =>
 
 type FormValues = z.infer<typeof baseSchema>;
 
-export function Auth({ onBack, onLogin }: Props) {
+export function Auth({ onBack, onSignIn, onSignUp }: Props) {
   const { t } = useTranslation();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [role, setRole] = useState<Role>("customer");
+  const [role, setRole] = useState<SignupRole>("customer");
 
   const {
     register,
@@ -58,23 +66,40 @@ export function Auth({ onBack, onLogin }: Props) {
   });
 
   const onSubmit = handleSubmit(async (data) => {
-    const fallback = data.email.split("@")[0] || "Guest";
-    const display = (data.name || fallback).trim();
-    await onLogin({
-      name: display.charAt(0).toUpperCase() + display.slice(1),
-      role,
+    if (mode === "signin") {
+      const res = await onSignIn({ email: data.email, password: data.password });
+      if (!res.ok) {
+        toast.error(res.error || "Sign in failed");
+        return;
+      }
+      toast.success(`Welcome back${res.role ? ` (${res.role})` : ""}`);
+      return;
+    }
+
+    const res = await onSignUp({
       email: data.email,
       password: data.password,
+      name: (data.name || "").trim(),
+      role,
+      tradeLicense: data.tradeLicense,
+      vatTrn: data.vatTrn,
     });
-    toast.success(mode === "signin" ? `Welcome back, ${role}` : "Account created");
+    if (!res.ok) {
+      toast.error(res.error || "Could not create account");
+      return;
+    }
+    toast.success("Account created");
   });
 
-  const switchMode = (m: "signin" | "signup") => { setMode(m); reset(); };
+  const switchMode = (m: "signin" | "signup") => {
+    setMode(m);
+    setRole("customer");
+    reset();
+  };
 
-  const roles: { id: Role; icon: typeof User }[] = [
+  const signupRoles: { id: SignupRole; icon: typeof User }[] = [
     { id: "customer", icon: User },
     { id: "dealer", icon: Building2 },
-    { id: "admin", icon: ShieldCheck },
   ];
 
   const FieldError = ({ msg }: { msg?: string }) =>
@@ -99,8 +124,15 @@ export function Auth({ onBack, onLogin }: Props) {
               <Editable id="auth.intro" page="Auth" label="Welcome Intro" multiline defaultValue={t("auth.intro")} />
             </p>
           </div>
-          <div className="space-y-2 text-white/70">
-            <p>{t("auth.f1")}</p><p>{t("auth.f2")}</p><p>{t("auth.f3")}</p>
+          <div className="space-y-2 text-white/70 text-sm">
+            <p>{t("auth.f1")}</p>
+            <p>{t("auth.f2")}</p>
+            <p>{t("auth.f3")}</p>
+            <div className="mt-4 pt-4 border-t border-white/10 text-xs text-white/50 space-y-1">
+              <p>Demo admin: admin@marketly.ae / admin123</p>
+              <p>Demo dealer: ahmed@example.ae / dealer123</p>
+              <p>Demo user: sara.k@example.com / user1234</p>
+            </div>
           </div>
         </div>
 
@@ -120,12 +152,21 @@ export function Auth({ onBack, onLogin }: Props) {
           </div>
 
           <h3 className="tracking-tight mb-1">{mode === "signin" ? t("auth.welcomeBack") : t("auth.join")}</h3>
-          <p className="text-slate-500 mb-6">{mode === "signin" ? t("auth.subSignin") : t("auth.subSignup")}</p>
+          <p className="text-slate-500 mb-6">
+            {mode === "signin"
+              ? "Sign in with your email. Your role and permissions are applied automatically."
+              : "Create a customer or dealer account. Admin accounts are provisioned by Marketly only."}
+          </p>
 
           {mode === "signup" && (
-            <div className="grid grid-cols-3 gap-2 mb-5">
-              {roles.map((r) => (
-                <button key={r.id} type="button" onClick={() => setRole(r.id)} className={`p-3 rounded-xl border text-start transition ${role === r.id ? "border-blue-600 bg-blue-50 dark:bg-blue-950/30" : "border-slate-200 dark:border-slate-700"}`}>
+            <div className="grid grid-cols-2 gap-2 mb-5">
+              {signupRoles.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => setRole(r.id)}
+                  className={`p-3 rounded-xl border text-start transition ${role === r.id ? "border-blue-600 bg-blue-50 dark:bg-blue-950/30" : "border-slate-200 dark:border-slate-700"}`}
+                >
                   <r.icon className={`size-5 mb-2 ${role === r.id ? "text-blue-600" : "text-slate-500"}`} />
                   <p>{t(`auth.${r.id}`)}</p>
                   <p className="text-slate-500 text-xs mt-0.5">{t(`auth.${r.id}D`)}</p>
@@ -213,18 +254,8 @@ export function Auth({ onBack, onLogin }: Props) {
               </div>
             )}
 
-            {mode === "signin" && (
-              <div className="grid grid-cols-3 gap-2">
-                {roles.map((r) => (
-                  <button key={r.id} type="button" onClick={() => setRole(r.id)} className={`py-2 rounded-lg border transition text-sm ${role === r.id ? "border-blue-600 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"}`}>
-                    {t(`auth.${r.id}`)}
-                  </button>
-                ))}
-              </div>
-            )}
-
             <button type="submit" disabled={isSubmitting} className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:opacity-95 disabled:opacity-60">
-              {mode === "signin" ? `${t("auth.signinAs")} ${t(`auth.${role}`)}` : t("auth.create")}
+              {mode === "signin" ? t("auth.signin") || "Sign in" : t("auth.create")}
             </button>
           </form>
 

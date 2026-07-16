@@ -1,10 +1,50 @@
 export type UserRole = "customer" | "dealer" | "admin";
 
+/** Frontend capability flags controlled by admin (customers & dealers). */
+export type FrontendPermissions = {
+  canBrowseMotors: boolean;
+  canBrowseClassifieds: boolean;
+  canBrowseAuctions: boolean;
+  canBrowseProperty: boolean;
+  canBrowseJobs: boolean;
+  canBrowseFurniture: boolean;
+  canBrowseMobiles: boolean;
+  canPostAds: boolean;
+  canBidInAuctions: boolean;
+  canMessage: boolean;
+  canSaveWishlist: boolean;
+  canContactSellers: boolean;
+  canViewPricing: boolean;
+  /** Dealer-only style capabilities (ignored for customers unless enabled). */
+  canAccessDealerTools: boolean;
+  canFeatureListings: boolean;
+  canBulkManageAds: boolean;
+  showVerifiedBadge: boolean;
+  maxAdsPerMonth: number;
+};
+
 export type SessionUser = {
   id: string;
   name: string;
   email: string;
   role: UserRole;
+  banned: boolean;
+  verified: boolean;
+  permissions: FrontendPermissions;
+};
+
+export type AuthAccount = {
+  id: string;
+  name: string;
+  email: string;
+  password: string;
+  role: UserRole;
+  banned: boolean;
+  verified: boolean;
+  tradeLicense?: string;
+  vatTrn?: string;
+  permissions: FrontendPermissions;
+  createdAt: string;
 };
 
 export type ListingStatus = "pending" | "approved" | "rejected";
@@ -65,4 +105,60 @@ export type CreateListingInput = {
   ownerId?: string;
   ownerName?: string;
   role?: UserRole;
+};
+
+export const DEFAULT_CUSTOMER_PERMISSIONS: FrontendPermissions = {
+  canBrowseMotors: true,
+  canBrowseClassifieds: true,
+  canBrowseAuctions: true,
+  canBrowseProperty: true,
+  canBrowseJobs: true,
+  canBrowseFurniture: true,
+  canBrowseMobiles: true,
+  canPostAds: true,
+  canBidInAuctions: true,
+  canMessage: true,
+  canSaveWishlist: true,
+  canContactSellers: true,
+  canViewPricing: true,
+  canAccessDealerTools: false,
+  canFeatureListings: false,
+  canBulkManageAds: false,
+  showVerifiedBadge: false,
+  maxAdsPerMonth: 5,
+};
+
+export const DEFAULT_DEALER_PERMISSIONS: FrontendPermissions = {
+  ...DEFAULT_CUSTOMER_PERMISSIONS,
+  canAccessDealerTools: true,
+  canFeatureListings: true,
+  canBulkManageAds: true,
+  showVerifiedBadge: true,
+  maxAdsPerMonth: 100,
+};
+
+export const DEFAULT_ADMIN_PERMISSIONS: FrontendPermissions = {
+  ...DEFAULT_DEALER_PERMISSIONS,
+  maxAdsPerMonth: 9999,
+};
+
+export const BANNED_PERMISSIONS: FrontendPermissions = {
+  canBrowseMotors: false,
+  canBrowseClassifieds: false,
+  canBrowseAuctions: false,
+  canBrowseProperty: false,
+  canBrowseJobs: false,
+  canBrowseFurniture: false,
+  canBrowseMobiles: false,
+  canPostAds: false,
+  canBidInAuctions: false,
+  canMessage: false,
+  canSaveWishlist: false,
+  canContactSellers: false,
+  canViewPricing: false,
+  canAccessDealerTools: false,
+  canFeatureListings: false,
+  canBulkManageAds: false,
+  showVerifiedBadge: false,
+  maxAdsPerMonth: 0,
 };

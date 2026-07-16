@@ -1,10 +1,28 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { authApi, type SessionUser, type UserRole } from "@marketly/core";
+import {
+  authApi,
+  type FrontendPermissions,
+  type SessionUser,
+} from "@marketly/core";
+
+type AuthResult = { ok: boolean; error?: string; role?: string };
 
 type AuthContextValue = {
   user: SessionUser | null;
+  permissions: FrontendPermissions | null;
   loading: boolean;
-  login: (input: { email: string; password: string; name?: string; role: UserRole }) => Promise<boolean>;
+  can: (key: keyof FrontendPermissions) => boolean;
+  signIn: (input: { email: string; password: string }) => Promise<AuthResult>;
+  signUp: (input: {
+    email: string;
+    password: string;
+    name: string;
+    role: "customer" | "dealer";
+    tradeLicense?: string;
+    vatTrn?: string;
+  }) => Promise<AuthResult>;
+  /** @deprecated use signIn */
+  login: (input: { email: string; password: string }) => Promise<boolean>;
   logout: () => Promise<void>;
 };
 
@@ -24,21 +42,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return authApi.subscribeAuth(() => setUser(authApi.getSessionSync()));
   }, []);
 
-  const login = useCallback(async (input: { email: string; password: string; name?: string; role: UserRole }) => {
+  const signIn = useCallback(async (input: { email: string; password: string }): Promise<AuthResult> => {
     const res = await authApi.login(input);
     if (res.ok) {
       setUser(res.data);
-      return true;
+      return { ok: true, role: res.data.role };
     }
-    return false;
+    return { ok: false, error: res.error };
   }, []);
+
+  const signUp = useCallback(async (input: {
+    email: string;
+    password: string;
+    name: string;
+    role: "customer" | "dealer";
+    tradeLicense?: string;
+    vatTrn?: string;
+  }): Promise<AuthResult> => {
+    const res = await authApi.signup(input);
+    if (res.ok) {
+      setUser(res.data);
+      return { ok: true, role: res.data.role };
+    }
+    return { ok: false, error: res.error };
+  }, []);
+
+  const login = useCallback(async (input: { email: string; password: string }) => {
+    const res = await signIn(input);
+    return res.ok;
+  }, [signIn]);
 
   const logout = useCallback(async () => {
     await authApi.logout();
     setUser(null);
   }, []);
 
-  const value = useMemo(() => ({ user, loading, login, logout }), [user, loading, login, logout]);
+  const can = useCallback(
+    (key: keyof FrontendPermissions) => {
+      if (!user) return false;
+      if (user.role === "admin") return true;
+      const val = user.permissions[key];
+      return typeof val === "boolean" ? val : Boolean(val);
+    },
+    [user],
+  );
+
+  const value = useMemo(
+    () => ({
+      user,
+      permissions: user?.permissions ?? null,
+      loading,
+      can,
+      signIn,
+      signUp,
+      login,
+      logout,
+    }),
+    [user, loading, can, signIn, signUp, login, logout],
+  );
+
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

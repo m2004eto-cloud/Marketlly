@@ -15,6 +15,7 @@ import { FurnitureMenu } from "./FurnitureMenu";
 import { JobsMenu } from "./JobsMenu";
 import { PropertyMenu } from "./PropertyMenu";
 import { useApp } from "../AppContext";
+import { useAuth } from "../AuthContext";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Editable } from "./Editable";
@@ -128,6 +129,7 @@ function LiveAuctionsSection({ onNavigate }: { onNavigate: (page: string, params
 export function Landing({ onNavigate, user, onLogout }: Props) {
   const { t } = useTranslation();
   const { lang } = useApp();
+  const { can, user: session } = useAuth();
   const [showBanner, setShowBanner] = useState(true);
   const [tab, setTab] = useState("All");
   const [motorsOpen, setMotorsOpen] = useState(false);
@@ -137,6 +139,22 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
   const [jobsOpen, setJobsOpen] = useState(false);
   const [propertyOpen, setPropertyOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+
+  const categoryAllowed = (id: string) => {
+    if (!session || session.role === "admin") return true;
+    const map: Record<string, Parameters<typeof can>[0]> = {
+      motors: "canBrowseMotors",
+      classifieds: "canBrowseClassifieds",
+      mobiles: "canBrowseMobiles",
+      furniture: "canBrowseFurniture",
+      jobs: "canBrowseJobs",
+      property: "canBrowseProperty",
+      auction: "canBrowseAuctions",
+    };
+    const key = map[id];
+    return key ? can(key) : true;
+  };
+  const visibleNavCats = navCats.filter((c) => categoryAllowed(c.id));
   const [query, setQuery] = useState("");
   const [city, setCity] = useState("Dubai");
   const { ids: recentIds } = useRecentlyViewed();
@@ -293,15 +311,17 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
 
           <div className="flex items-center gap-2 ms-auto lg:ms-0">
             <HeaderControls />
-            <button onClick={() => onNavigate("post")} className="px-4 py-2 rounded-lg bg-[#2563eb] text-white hover:bg-[#1d4ed8] whitespace-nowrap">
-              <Editable id="landing.placeAdBtn" page="Landing" label="Place Your Ad Button" defaultValue="Place Your Ad" />
-            </button>
+            {(!session || can("canPostAds")) && (
+              <button onClick={() => onNavigate("post")} className="px-4 py-2 rounded-lg bg-[#2563eb] text-white hover:bg-[#1d4ed8] whitespace-nowrap">
+                <Editable id="landing.placeAdBtn" page="Landing" label="Place Your Ad Button" defaultValue="Place Your Ad" />
+              </button>
+            )}
           </div>
         </div>
 
         <div className="border-t border-slate-200 dark:border-slate-800 relative">
           <div className="w-full px-6 h-12 flex items-center gap-6 text-slate-700 dark:text-slate-200 relative">
-            {navCats.map((c) => {
+            {visibleNavCats.map((c) => {
               const isMotors = c.id === "motors";
               const isClassifieds = c.id === "classifieds";
               const isMobiles = c.id === "mobiles";

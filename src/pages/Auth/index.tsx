@@ -5,20 +5,26 @@ import { useAuth } from "../../app/AuthContext";
 export function AuthPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login } = useAuth();
+  const { signIn, signUp } = useAuth();
   const from = (location.state as { from?: string } | null)?.from || "/";
+
+  const goAfterAuth = (role?: string) => {
+    if (role === "admin") navigate("/admin");
+    else navigate(from === "/auth" ? "/" : from);
+  };
 
   return (
     <Auth
       onBack={() => navigate("/")}
-      onLogin={async (u) => {
-        const ok = await login({
-          email: u.email,
-          password: u.password,
-          name: u.name,
-          role: u.role,
-        });
-        if (ok) navigate(u.role === "admin" ? "/admin" : from === "/auth" ? "/" : from);
+      onSignIn={async (input) => {
+        const res = await signIn(input);
+        if (res.ok) goAfterAuth(res.role);
+        return res;
+      }}
+      onSignUp={async (input) => {
+        const res = await signUp(input);
+        if (res.ok) goAfterAuth(res.role);
+        return res;
       }}
     />
   );
