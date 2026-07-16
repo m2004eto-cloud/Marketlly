@@ -352,7 +352,7 @@ const SIM_BIDDERS = [
 type AuctionCtx = {
   auctions: Auction[];
   placeBid: (auctionId: string, amount: number, bidderId: string, bidderName: string, isAdmin?: boolean) => string | null;
-  createAuction: (draft: NewAuctionDraft) => void;
+  createAuction: (draft: NewAuctionDraft) => string;
   updateAuction: (id: string, patch: Partial<Auction>) => void;
   endAuction: (id: string) => void;
   deleteAuction: (id: string) => void;
@@ -424,9 +424,10 @@ export function AuctionProvider({ children }: { children: React.ReactNode }) {
   );
 
   const createAuction = useCallback((draft: NewAuctionDraft) => {
+    const id = `a-${Date.now()}`;
     const a: Auction = {
       ...draft,
-      id: `a-${Date.now()}`,
+      id,
       bids: [],
       currentBid: draft.startingPrice,
       currentBidder: null,
@@ -436,6 +437,7 @@ export function AuctionProvider({ children }: { children: React.ReactNode }) {
       watchers: 0,
     };
     setAuctions((prev) => [a, ...prev]);
+    return id;
   }, []);
 
   const updateAuction = useCallback((id: string, patch: Partial<Auction>) => {

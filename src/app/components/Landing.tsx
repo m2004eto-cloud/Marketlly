@@ -293,6 +293,14 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
 
           <div className="flex items-center gap-2 ms-auto lg:ms-0">
             <HeaderControls />
+            {session && can("canPostAuction") && (session.role === "dealer" || session.role === "admin") && (
+              <button
+                onClick={() => onNavigate("post")}
+                className="px-3 py-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-950/30 whitespace-nowrap text-sm font-medium inline-flex items-center gap-1.5"
+              >
+                <Gavel className="size-3.5" /> Post car auction
+              </button>
+            )}
             {(!session || can("canPostAds")) && (
               <button onClick={() => onNavigate("post")} className="px-4 py-2 rounded-lg bg-[#2563eb] text-white hover:bg-[#1d4ed8] whitespace-nowrap">
                 <Editable id="landing.placeAdBtn" page="Landing" label="Place Your Ad Button" defaultValue="Place Your Ad" />

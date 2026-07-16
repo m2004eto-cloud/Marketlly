@@ -698,6 +698,7 @@ function UsersSection({ users, allUsers, scopeLabel, variant = "user", onUpdateU
                   { label: "Actions", keys: [
                     { key: "canPostAds" as const, label: "Post Ads", icon: Plus },
                     { key: "canBidInAuctions" as const, label: "Bid in Auctions", icon: Gavel },
+                    { key: "canPostAuction" as const, label: "Post Car in Auction", icon: Gavel },
                     { key: "canMessage" as const, label: "Messaging", icon: MessageCircle },
                     { key: "canSaveWishlist" as const, label: "Wishlist", icon: Heart },
                     { key: "canContactSellers" as const, label: "Contact Sellers", icon: Phone },

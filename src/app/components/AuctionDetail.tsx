@@ -11,7 +11,14 @@ import { formatCurrency } from "../utils";
 import { toast } from "sonner";
 
 type User = { name: string; role: "customer" | "dealer" | "admin" } | null;
-type Props = { id: string; onBack: () => void; user: User; onLogin: () => void };
+type Props = {
+  id: string;
+  onBack: () => void;
+  user: User;
+  onLogin: () => void;
+  canBid?: boolean;
+  canBrowse?: boolean;
+};
 
 function LiveCountdown({ endTime }: { endTime: number }) {
   const { t } = useTranslation();
@@ -65,7 +72,7 @@ function BidRow({ bid, index, total }: { bid: Bid; index: number; total: number 
   );
 }
 
-export function AuctionDetail({ id, onBack, user, onLogin }: Props) {
+export function AuctionDetail({ id, onBack, user, onLogin, canBid = true, canBrowse = true }: Props) {
   const { t } = useTranslation();
   const { auctions, placeBid } = useAuction();
   const auction = useMemo(() => auctions.find((a) => a.id === id), [auctions, id]);
@@ -73,6 +80,19 @@ export function AuctionDetail({ id, onBack, user, onLogin }: Props) {
   const [bidAmount, setBidAmount] = useState("");
   const [tab, setTab] = useState<"details" | "bids" | "seller">("details");
   const [watched, setWatched] = useState(false);
+
+  if (!canBrowse && user?.role !== "admin") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-6">
+        <div className="text-center max-w-md">
+          <Gavel className="size-12 mx-auto text-slate-300 mb-3" />
+          <p className="font-semibold mb-2">Auctions access is disabled</p>
+          <p className="text-sm text-slate-500 mb-4">An admin must enable the “Auctions” permission for your account.</p>
+          <button onClick={onBack} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Go back</button>
+        </div>
+      </div>
+    );
+  }
 
   if (!auction) {
     return (
@@ -97,6 +117,10 @@ export function AuctionDetail({ id, onBack, user, onLogin }: Props) {
 
   const handleBid = () => {
     if (!user) { onLogin(); return; }
+    if (!canBid && user.role !== "admin") {
+      toast.error("Bidding is disabled for your account. Ask an admin to enable “Bid in Auctions”.");
+      return;
+    }
     const amount = parseFloat(bidAmount.replace(/,/g, ""));
     if (isNaN(amount)) { toast.error("Please enter a valid bid amount."); return; }
     const err = placeBid(auction.id, amount, userId, user.name, user.role === "admin");
@@ -324,31 +348,40 @@ export function AuctionDetail({ id, onBack, user, onLogin }: Props) {
                 )}
                 {isLive && (
                   <div className="space-y-3">
-                    <div>
-                      <label className="text-xs text-slate-500 uppercase tracking-wide block mb-1.5">{t("auction.yourBidMin")} {formatCurrency(minNextBid)})</label>
-                      <div className="relative">
-                        <span className="absolute start-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm font-medium">AED</span>
-                        <input type="number" value={bidAmount} onChange={(e) => setBidAmount(e.target.value)} placeholder={minNextBid.toLocaleString()} min={minNextBid} step={auction.minIncrement} className="w-full ps-14 pe-3 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none focus:border-blue-600 text-lg font-bold tabular-nums" />
+                    {user && !canBid && user.role !== "admin" ? (
+                      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-center">
+                        <p className="text-sm font-medium mb-1">Bidding is turned off</p>
+                        <p className="text-xs text-slate-500">Ask an admin to enable “Bid in Auctions” for your account.</p>
                       </div>
-                    </div>
-                    <div className="flex gap-2 flex-wrap">
-                      {[1, 2, 5].map((mult) => (
-                        <button key={mult} onClick={() => setBidAmount(String(minNextBid + auction.minIncrement * (mult - 1)))} className="flex-1 min-w-fit py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium hover:border-blue-600 hover:text-blue-600 transition">
-                          +{formatCurrency(auction.minIncrement * mult)}
+                    ) : (
+                      <>
+                        <div>
+                          <label className="text-xs text-slate-500 uppercase tracking-wide block mb-1.5">{t("auction.yourBidMin")} {formatCurrency(minNextBid)})</label>
+                          <div className="relative">
+                            <span className="absolute start-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm font-medium">AED</span>
+                            <input type="number" value={bidAmount} onChange={(e) => setBidAmount(e.target.value)} placeholder={minNextBid.toLocaleString()} min={minNextBid} step={auction.minIncrement} className="w-full ps-14 pe-3 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none focus:border-blue-600 text-lg font-bold tabular-nums" />
+                          </div>
+                        </div>
+                        <div className="flex gap-2 flex-wrap">
+                          {[1, 2, 5].map((mult) => (
+                            <button key={mult} onClick={() => setBidAmount(String(minNextBid + auction.minIncrement * (mult - 1)))} className="flex-1 min-w-fit py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium hover:border-blue-600 hover:text-blue-600 transition">
+                              +{formatCurrency(auction.minIncrement * mult)}
+                            </button>
+                          ))}
+                        </div>
+                        <button onClick={handleBid} className={`w-full py-3.5 rounded-xl font-bold text-sm tracking-wide transition ${user?.role === "admin" ? "bg-amber-500 hover:bg-amber-600 text-white" : "bg-blue-600 hover:bg-blue-700 text-white"}`}>
+                          {user ? (user.role === "admin" ? t("auction.placeAdminBid") : t("auction.placeBid")) : t("auction.signInToBid")}
                         </button>
-                      ))}
-                    </div>
-                    <button onClick={handleBid} className={`w-full py-3.5 rounded-xl font-bold text-sm tracking-wide transition ${user?.role === "admin" ? "bg-amber-500 hover:bg-amber-600 text-white" : "bg-blue-600 hover:bg-blue-700 text-white"}`}>
-                      {user ? (user.role === "admin" ? t("auction.placeAdminBid") : t("auction.placeBid")) : t("auction.signInToBid")}
-                    </button>
-                    {user?.role === "admin" && (
-                      <p className="text-center text-xs text-amber-600 font-medium flex items-center justify-center gap-1">
-                        <ShieldCheck className="size-3" />{t("auction.adminBidNote")}
-                      </p>
+                        {user?.role === "admin" && (
+                          <p className="text-center text-xs text-amber-600 font-medium flex items-center justify-center gap-1">
+                            <ShieldCheck className="size-3" />{t("auction.adminBidNote")}
+                          </p>
+                        )}
+                        <p className="text-center text-xs text-slate-500">
+                          {t("auction.termsNote")} <button onClick={() => toast("Opening T&C…")} className="text-blue-600 underline">{t("auction.termsLink")}</button>
+                        </p>
+                      </>
                     )}
-                    <p className="text-center text-xs text-slate-500">
-                      {t("auction.termsNote")} <button onClick={() => toast("Opening T&C…")} className="text-blue-600 underline">{t("auction.termsLink")}</button>
-                    </p>
                   </div>
                 )}
                 {isUpcoming && (

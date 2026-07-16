@@ -4,9 +4,13 @@ export type UserRole = "customer" | "dealer" | "admin";
 export type FrontendPermissions = {
   canBrowseMotors: boolean;
   canBrowseClassifieds: boolean;
+  /** Browse auction listings on the frontend — off until admin enables. */
   canBrowseAuctions: boolean;
   canPostAds: boolean;
+  /** Place bids — off until admin enables. */
   canBidInAuctions: boolean;
+  /** Dealer: list a car in auction — off until admin enables. */
+  canPostAuction: boolean;
   canMessage: boolean;
   canSaveWishlist: boolean;
   canContactSellers: boolean;
@@ -96,12 +100,14 @@ export type CreateListingInput = {
   role?: UserRole;
 };
 
+/** Applied on every new signup — auction capabilities stay off until admin enables them. */
 export const DEFAULT_CUSTOMER_PERMISSIONS: FrontendPermissions = {
   canBrowseMotors: true,
   canBrowseClassifieds: true,
-  canBrowseAuctions: true,
+  canBrowseAuctions: false,
   canPostAds: true,
-  canBidInAuctions: true,
+  canBidInAuctions: false,
+  canPostAuction: false,
   canMessage: true,
   canSaveWishlist: true,
   canContactSellers: true,
@@ -120,10 +126,17 @@ export const DEFAULT_DEALER_PERMISSIONS: FrontendPermissions = {
   canBulkManageAds: true,
   showVerifiedBadge: true,
   maxAdsPerMonth: 100,
+  // Auction browse / bid / post remain false until admin switches them on
+  canBrowseAuctions: false,
+  canBidInAuctions: false,
+  canPostAuction: false,
 };
 
 export const DEFAULT_ADMIN_PERMISSIONS: FrontendPermissions = {
   ...DEFAULT_DEALER_PERMISSIONS,
+  canBrowseAuctions: true,
+  canBidInAuctions: true,
+  canPostAuction: true,
   maxAdsPerMonth: 9999,
 };
 
@@ -133,6 +146,7 @@ export const BANNED_PERMISSIONS: FrontendPermissions = {
   canBrowseAuctions: false,
   canPostAds: false,
   canBidInAuctions: false,
+  canPostAuction: false,
   canMessage: false,
   canSaveWishlist: false,
   canContactSellers: false,

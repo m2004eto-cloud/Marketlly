@@ -101,6 +101,24 @@ function saveAccounts(accounts: AuthAccount[]) {
   notify();
 }
 
+function normalizePermissions(role: UserRole, perms?: Partial<FrontendPermissions>): FrontendPermissions {
+  const base =
+    role === "admin"
+      ? DEFAULT_ADMIN_PERMISSIONS
+      : role === "dealer"
+        ? DEFAULT_DEALER_PERMISSIONS
+        : DEFAULT_CUSTOMER_PERMISSIONS;
+  // Merge stored flags over role defaults so new keys (e.g. canPostAuction) default safely.
+  // Auction flags default OFF for non-admin unless explicitly stored as true.
+  return {
+    ...base,
+    ...perms,
+    canBrowseAuctions: role === "admin" ? true : Boolean(perms?.canBrowseAuctions),
+    canBidInAuctions: role === "admin" ? true : Boolean(perms?.canBidInAuctions),
+    canPostAuction: role === "admin" ? true : Boolean(perms?.canPostAuction),
+  };
+}
+
 function toSession(account: AuthAccount): SessionUser {
   return {
     id: account.id,
@@ -109,7 +127,9 @@ function toSession(account: AuthAccount): SessionUser {
     role: account.role,
     banned: account.banned,
     verified: account.verified,
-    permissions: account.banned ? { ...BANNED_PERMISSIONS } : { ...account.permissions },
+    permissions: account.banned
+      ? { ...BANNED_PERMISSIONS }
+      : normalizePermissions(account.role, account.permissions),
   };
 }
 

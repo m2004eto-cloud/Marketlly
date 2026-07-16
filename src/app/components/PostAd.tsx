@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, Car, Tag, Upload, MapPin, Check, X, Trash2 } from "lucide-react";
+import { ArrowLeft, Car, Tag, Upload, MapPin, Check, X, Trash2, Gavel, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useForm } from "react-hook-form";
@@ -10,6 +10,7 @@ import { Editable } from "./Editable";
 import { useCatalog } from "../PostAdCatalogContext";
 import { listingsApi } from "@marketly/core";
 import { useAuth } from "../AuthContext";
+import { useAuction, type NewAuctionDraft } from "../AuctionContext";
 
 const detailsSchema = z.object({
   title: z.string().min(8, "Title must be at least 8 characters").max(80, "Title is too long"),
@@ -28,8 +29,13 @@ const contactSchema = z.object({
 type DetailsValues = z.infer<typeof detailsSchema>;
 type ContactValues = z.infer<typeof contactSchema>;
 
-type Props = { onBack: () => void; onCreated?: (id: number) => void };
+type Props = {
+  onBack: () => void;
+  onCreated?: (id: number) => void;
+  onAuctionCreated?: (id: string) => void;
+};
 type Cat = "motors" | "classifieds";
+type PostMode = "listing" | "auction";
 
 type Field =
   | { key: string; label: string; type: "text" | "number"; placeholder?: string }
@@ -339,10 +345,24 @@ const classifiedsFields: Field[] = [
   { key: "warranty", label: "Warranty", type: "pill-single", opts: ["Yes - Manufacturer", "Yes - Seller", "No"] },
 ];
 
-export function PostAd({ onBack, onCreated }: Props) {
+export function PostAd({ onBack, onCreated, onAuctionCreated }: Props) {
   const { t } = useTranslation();
   const { catalog } = useCatalog();
-  const { user } = useAuth();
+  const { user, can } = useAuth();
+  const { createAuction } = useAuction();
+  const isDealerLike = user?.role === "dealer" || user?.role === "admin";
+  const canPostAuction = Boolean(user && (user.role === "admin" || can("canPostAuction")));
+  const [postMode, setPostMode] = useState<PostMode | null>(isDealerLike ? null : "listing");
+  const [auctionExtras, setAuctionExtras] = useState({
+    startingPrice: "",
+    reservePrice: "",
+    minIncrement: "1000",
+    durationHours: "48",
+    vin: "",
+    color: "",
+    condition: "Good" as NewAuctionDraft["condition"],
+    bodyType: "Sedan",
+  });
 
   // Build motors field definitions from live catalog context
   const motorsFields: Field[] = [
@@ -428,6 +448,60 @@ export function PostAd({ onBack, onCreated }: Props) {
 
   const submit = contactForm.handleSubmit(async () => {
     const details = detailsForm.getValues();
+
+    if (postMode === "auction") {
+      if (!canPostAuction) {
+        toast.error("You do not have permission to post cars in auction. Ask an admin to enable it.");
+        return;
+      }
+      const starting = Number(auctionExtras.startingPrice || details.price);
+      const reserve = Number(auctionExtras.reservePrice || starting);
+      const increment = Number(auctionExtras.minIncrement) || 1000;
+      const hours = Math.max(1, Number(auctionExtras.durationHours) || 48);
+      if (!meta.make || !meta.model) {
+        toast.error("Make and model are required for auction cars.");
+        return;
+      }
+      if (!starting || starting <= 0) {
+        toast.error("Enter a valid starting price.");
+        return;
+      }
+      const now = Date.now();
+      const draft: NewAuctionDraft = {
+        title: details.title || `${meta.year || ""} ${meta.make} ${meta.model}`.trim(),
+        make: meta.make,
+        model: meta.model,
+        year: Number(meta.year) || new Date().getFullYear(),
+        mileage: Number(meta.kms) || 0,
+        color: auctionExtras.color || meta.exteriorColor || "White",
+        condition: auctionExtras.condition,
+        transmission: (meta.transmission === "Manual" ? "Manual" : "Automatic"),
+        fuelType: (["Petrol", "Diesel", "Electric", "Hybrid"].includes(meta.fuel)
+          ? meta.fuel
+          : "Petrol") as NewAuctionDraft["fuelType"],
+        bodyType: auctionExtras.bodyType || meta.bodyType || "Sedan",
+        vin: auctionExtras.vin || `VIN-${Date.now()}`,
+        description: details.description,
+        images: photos.length
+          ? photos.slice(0, 8)
+          : ["https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=800"],
+        location: details.location,
+        startingPrice: starting,
+        reservePrice: reserve,
+        minIncrement: increment,
+        startTime: now,
+        endTime: now + hours * 3_600_000,
+        featured: Boolean(user?.permissions.showVerifiedBadge),
+        sellerId: user?.id || "dealer",
+        sellerName: user?.name || "Dealer",
+      };
+      const auctionId = createAuction(draft);
+      setStep(4);
+      toast.success("Car listed for auction — bidding is live.");
+      onAuctionCreated?.(auctionId);
+      return;
+    }
+
     const res = await listingsApi.createListing({
       title: details.title,
       price: Number(details.price),
@@ -603,11 +677,47 @@ export function PostAd({ onBack, onCreated }: Props) {
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 md:p-8">
           {step === 1 && (
             <>
-              <h2 className="tracking-tight mb-1">{t("post.chooseCat")}</h2>
-              <p className="text-slate-500 mb-6">{t("post.chooseSub")}</p>
+              {isDealerLike && (
+                <div className="mb-8">
+                  <h2 className="tracking-tight mb-1">What are you posting?</h2>
+                  <p className="text-slate-500 mb-4">Choose a standard marketplace ad or a live car auction.</p>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => { setPostMode("listing"); setCat(null); setSub(""); }}
+                      className={`p-5 rounded-xl border text-start transition ${postMode === "listing" ? "border-blue-600 bg-blue-50 dark:bg-blue-950/30" : "border-slate-200 dark:border-slate-700"}`}
+                    >
+                      <FileText className={`size-6 mb-3 ${postMode === "listing" ? "text-blue-600" : "text-slate-500"}`} />
+                      <p className="font-semibold">Standard marketplace ad</p>
+                      <p className="text-xs text-slate-500 mt-1">Motors or classifieds listing for sale</p>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!canPostAuction}
+                      onClick={() => { if (!canPostAuction) return; setPostMode("auction"); setCat("motors"); setSub("Cars"); setSubSub(""); }}
+                      className={`p-5 rounded-xl border text-start transition disabled:opacity-50 disabled:cursor-not-allowed ${postMode === "auction" ? "border-red-600 bg-red-50 dark:bg-red-950/30" : "border-slate-200 dark:border-slate-700"}`}
+                    >
+                      <Gavel className={`size-6 mb-3 ${postMode === "auction" ? "text-red-600" : "text-slate-500"}`} />
+                      <p className="font-semibold">Post car in auction</p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {canPostAuction ? "Live bidding with reserve & countdown" : "Locked — ask admin to enable “Post Car in Auction”"}
+                      </p>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {postMode && (
+              <>
+              <h2 className="tracking-tight mb-1">
+                {postMode === "auction" ? "Auction vehicle category" : t("post.chooseCat")}
+              </h2>
+              <p className="text-slate-500 mb-6">
+                {postMode === "auction" ? "Only motors / cars can be listed for auction." : t("post.chooseSub")}
+              </p>
               <div className="grid sm:grid-cols-3 gap-3 mb-6">
-                {cats.map((c) => (
-                  <button key={c.id} onClick={() => { setCat(c.id); setSub(""); setSubSub(""); setMeta({}); setMulti({}); }} className={`p-5 rounded-xl border text-start transition ${cat === c.id ? "border-blue-600 bg-blue-50 dark:bg-blue-950/30" : "border-slate-200 dark:border-slate-700"}`}>
+                {(postMode === "auction" ? cats.filter((c) => c.id === "motors") : cats).map((c) => (
+                  <button key={c.id} onClick={() => { setCat(c.id); setSub(postMode === "auction" ? "Cars" : ""); setSubSub(""); setMeta({}); setMulti({}); }} className={`p-5 rounded-xl border text-start transition ${cat === c.id ? "border-blue-600 bg-blue-50 dark:bg-blue-950/30" : "border-slate-200 dark:border-slate-700"}`}>
                     <c.icon className={`size-6 mb-3 ${cat === c.id ? "text-blue-600" : "text-slate-500"}`} />
                     <p>{t(`nav.${c.id}`)}</p>
                   </button>
@@ -634,15 +744,17 @@ export function PostAd({ onBack, onCreated }: Props) {
                 </div>
               )}
               <div className="flex justify-end">
-                <button disabled={!cat || !sub || (cat === "classifieds" && !subSub)} onClick={() => setStep(2)} className="px-6 py-3 rounded-xl bg-slate-900 dark:bg-white dark:text-slate-900 text-white disabled:bg-slate-300 dark:disabled:bg-slate-700">{t("post.continue")}</button>
+                <button disabled={!postMode || !cat || !sub || (cat === "classifieds" && !subSub)} onClick={() => setStep(2)} className="px-6 py-3 rounded-xl bg-slate-900 dark:bg-white dark:text-slate-900 text-white disabled:bg-slate-300 dark:disabled:bg-slate-700">{t("post.continue")}</button>
               </div>
+              </>
+              )}
             </>
           )}
 
           {step === 2 && cat && (
             <>
-              <h2 className="tracking-tight mb-1">{t("post.details")}</h2>
-              <p className="text-slate-500 mb-6">{sub} — {t("post.basics")}</p>
+              <h2 className="tracking-tight mb-1">{postMode === "auction" ? "Auction vehicle details" : t("post.details")}</h2>
+              <p className="text-slate-500 mb-6">{postMode === "auction" ? "Set vehicle info and auction pricing." : `${sub} — ${t("post.basics")}`}</p>
               <div className="space-y-5">
                 <div>
                   <label>{t("post.titleField")}</label>
@@ -658,7 +770,7 @@ export function PostAd({ onBack, onCreated }: Props) {
                 </div>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <label>{t("post.price")}</label>
+                    <label>{postMode === "auction" ? "Starting bid (AED)" : t("post.price")}</label>
                     <input
                       {...detailsForm.register("price")}
                       type="number"
@@ -683,6 +795,75 @@ export function PostAd({ onBack, onCreated }: Props) {
                     </div>
                   </div>
                 </div>
+
+                {postMode === "auction" && (
+                  <div className="rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50/50 dark:bg-red-950/20 p-4 space-y-4">
+                    <p className="text-sm font-semibold text-red-700 dark:text-red-300 flex items-center gap-2">
+                      <Gavel className="size-4" /> Auction settings
+                    </p>
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-slate-600">Reserve price (AED)</label>
+                        <input
+                          type="number"
+                          value={auctionExtras.reservePrice}
+                          onChange={(e) => setAuctionExtras((a) => ({ ...a, reservePrice: e.target.value }))}
+                          placeholder="Same as starting if empty"
+                          className="mt-1 w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-600">Min bid increment (AED)</label>
+                        <input
+                          type="number"
+                          value={auctionExtras.minIncrement}
+                          onChange={(e) => setAuctionExtras((a) => ({ ...a, minIncrement: e.target.value }))}
+                          className="mt-1 w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-600">Duration (hours)</label>
+                        <select
+                          value={auctionExtras.durationHours}
+                          onChange={(e) => setAuctionExtras((a) => ({ ...a, durationHours: e.target.value }))}
+                          className="mt-1 w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none"
+                        >
+                          {["12", "24", "48", "72", "168"].map((h) => (
+                            <option key={h} value={h}>{h} hours</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-600">Condition</label>
+                        <select
+                          value={auctionExtras.condition}
+                          onChange={(e) => setAuctionExtras((a) => ({ ...a, condition: e.target.value as NewAuctionDraft["condition"] }))}
+                          className="mt-1 w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none"
+                        >
+                          {["Excellent", "Good", "Fair", "Poor"].map((c) => <option key={c}>{c}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-600">Exterior color</label>
+                        <input
+                          value={auctionExtras.color}
+                          onChange={(e) => setAuctionExtras((a) => ({ ...a, color: e.target.value }))}
+                          placeholder="e.g. Pearl White"
+                          className="mt-1 w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-600">VIN (optional)</label>
+                        <input
+                          value={auctionExtras.vin}
+                          onChange={(e) => setAuctionExtras((a) => ({ ...a, vin: e.target.value }))}
+                          placeholder="Vehicle identification number"
+                          className="mt-1 w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-5 pt-3 border-t border-slate-100 dark:border-slate-800">
                   {cat === "classifieds" && classifiedsMakeModels[subSub] && (
