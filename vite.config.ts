@@ -26,8 +26,8 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      // Alias @ to the src directory
       '@': path.resolve(__dirname, './src'),
+      '@marketly/core': path.resolve(__dirname, './packages/core/src/index.ts'),
     },
   },
 

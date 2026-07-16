@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { formatCurrency } from "../utils";
 import { ArrowLeft, MapPin, Heart, Shield, MessageCircle, ChevronDown, ChevronUp, Search, Check, X } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
-import { LISTINGS, Listing } from "../data";
+import { listingsApi, type Listing } from "@marketly/core";
 import { useApp } from "../AppContext";
+import { useAuth } from "../AuthContext";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { HeaderControls } from "./HeaderControls";
@@ -11,7 +12,7 @@ import { Editable } from "./Editable";
 import { Banners } from "./Banners";
 
 type Props = {
-  initial: { q?: string; location?: string; category?: string };
+  initial: { q?: string; location?: string; category?: string; make?: string; model?: string };
   onBack: () => void;
   onOpen: (id: number) => void;
 };
@@ -258,6 +259,7 @@ function ColorGroup({ items, k, has, toggle }: { items: { name: string; hex: str
 export function Browse({ initial, onBack, onOpen }: Props) {
   const { t } = useTranslation();
   const { favorites, toggleFavorite } = useApp();
+  const { user } = useAuth();
   const [q, setQ] = useState(initial.q || "");
   const cat = initial.category || "";
   const [city, setCity] = useState(initial.location || "");
@@ -267,18 +269,46 @@ export function Browse({ initial, onBack, onOpen }: Props) {
   const [inspectedOnly, setInspectedOnly] = useState(false);
   const [subcat, setSubcat] = useState<string>("");
   const m = useMulti();
+  const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
+
   useEffect(() => {
+    let alive = true;
     setLoading(true);
-    const id = window.setTimeout(() => setLoading(false), 250);
-    return () => window.clearTimeout(id);
-  }, [q, cat, city, min, max, sort, inspectedOnly, subcat, m.val]);
+    listingsApi
+      .listListings({
+        status: "approved",
+        includeOwnPending: true,
+        userId: user?.id,
+        category: cat || undefined,
+        q: q || undefined,
+        location: city || undefined,
+        make: initial.make,
+      })
+      .then((res) => {
+        if (!alive) return;
+        if (res.ok) setListings(res.data);
+        setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [q, cat, city, user?.id, initial.make]);
+
+  useEffect(() => listingsApi.subscribeListings(() => {
+    listingsApi.listListings({
+      status: "approved",
+      includeOwnPending: true,
+      userId: user?.id,
+      category: cat || undefined,
+      q: q || undefined,
+      location: city || undefined,
+      make: initial.make,
+    }).then((res) => { if (res.ok) setListings(res.data); });
+  }), [q, cat, city, user?.id, initial.make]);
 
   const results: Listing[] = useMemo(() => {
-    let list = [...LISTINGS];
-    if (q) list = list.filter((l) => l.title.toLowerCase().includes(q.toLowerCase()) || (l.make || "").toLowerCase().includes(q.toLowerCase()));
-    if (cat) list = list.filter((l) => l.category === cat);
-    if (city) list = list.filter((l) => l.location === city);
+    let list = [...listings];
     if (min) list = list.filter((l) => l.price >= +min);
     if (max) list = list.filter((l) => l.price <= +max);
     const selectedMakes = m.val["make"] || [];
@@ -288,7 +318,7 @@ export function Browse({ initial, onBack, onOpen }: Props) {
     else if (sort === "priceHigh") list.sort((a, b) => b.price - a.price);
     else list.sort((a, b) => a.date - b.date);
     return list;
-  }, [q, cat, city, min, max, sort, inspectedOnly, m.val]);
+  }, [listings, min, max, sort, inspectedOnly, m.val]);
 
   useEffect(() => {
     const hash = window.location.hash.replace(/^#/, "");

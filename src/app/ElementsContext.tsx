@@ -198,6 +198,14 @@ export function ElementsProvider({ children }: { children: ReactNode }) {
   useEffect(() => { try { localStorage.setItem(STORAGE.media, JSON.stringify(media)); } catch { /* */ } }, [media]);
   useEffect(() => { try { localStorage.setItem(STORAGE.history, JSON.stringify(history.slice(0, 50))); } catch { /* */ } }, [history]);
 
+  // Mirror CMS snapshot into @marketly/core so mobile apps / previews stay in parallel with web live-edit
+  useEffect(() => {
+    void (async () => {
+      const { cmsApi } = await import("@marketly/core");
+      await cmsApi.saveCms({ values, banners, design: design as unknown as Record<string, unknown> });
+    })();
+  }, [values, banners, design]);
+
   useEffect(() => {
     const root = document.documentElement;
     root.style.setProperty("--ml-primary", design.primary);

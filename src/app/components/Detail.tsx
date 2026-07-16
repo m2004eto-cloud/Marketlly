@@ -6,7 +6,7 @@ import {
   Calculator, ChevronRight as ChevronRightIcon, Building2,
 } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
-import { LISTINGS } from "../data";
+import { listingsApi, type Listing } from "@marketly/core";
 import { useApp } from "../AppContext";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -36,16 +36,45 @@ const safetyTips = [
 export function Detail({ id, onBack, onOpen }: Props) {
   const { t } = useTranslation();
   const { favorites, toggleFavorite } = useApp();
-  const listing = LISTINGS.find((l) => l.id === id) || LISTINGS[0];
-  const fav = favorites.includes(listing.id);
+  const [listing, setListing] = useState<Listing | null>(() => listingsApi.getAllListingsSync().find((l) => l.id === id) || null);
+  const [similar, setSimilar] = useState<Listing[]>([]);
+  const fav = listing ? favorites.includes(listing.id) : false;
   const [active, setActive] = useState(0);
   const [showPhone, setShowPhone] = useState(false);
   const [tab, setTab] = useState<"overview" | "features" | "location">("overview");
   const { push: pushRecent } = useRecentlyViewed();
-  useEffect(() => { pushRecent(listing.id); }, [listing.id, pushRecent]);
 
-  const gallery = useMemo(() => [listing.img, ...carImages.filter((u) => u !== listing.img)].slice(0, 6), [listing.img]);
-  const similar = LISTINGS.filter((l) => l.id !== listing.id).slice(0, 6);
+  useEffect(() => {
+    let alive = true;
+    listingsApi.getListing(id).then((res) => {
+      if (!alive) return;
+      if (res.ok) setListing(res.data);
+      else setListing(null);
+    });
+    listingsApi.listListings({ status: "approved" }).then((res) => {
+      if (!alive || !res.ok) return;
+      setSimilar(res.data.filter((l) => l.id !== id).slice(0, 6));
+    });
+    return () => { alive = false; };
+  }, [id]);
+
+  useEffect(() => {
+    if (listing) pushRecent(listing.id);
+  }, [listing?.id, pushRecent]);
+
+  const gallery = useMemo(
+    () => (listing ? [listing.img, ...carImages.filter((u) => u !== listing.img)].slice(0, 6) : []),
+    [listing?.img],
+  );
+
+  if (!listing) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-8">
+        <p className="text-slate-600">Listing not found.</p>
+        <button type="button" onClick={onBack} className="px-4 py-2 rounded-lg bg-blue-600 text-white">Back</button>
+      </div>
+    );
+  }
 
   const specs = [
     { icon: Calendar, label: "Year", value: "2024" },

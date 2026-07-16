@@ -11,7 +11,7 @@ import { Editable } from "./Editable";
 type Role = "customer" | "dealer" | "admin";
 type Props = {
   onBack: () => void;
-  onLogin: (user: { name: string; role: Role }) => void;
+  onLogin: (user: { name: string; role: Role; email: string; password: string }) => void | Promise<void>;
 };
 
 const baseSchema = z.object({
@@ -57,10 +57,15 @@ export function Auth({ onBack, onLogin }: Props) {
     defaultValues: { email: "", password: "", name: "", tradeLicense: "", vatTrn: "" },
   });
 
-  const onSubmit = handleSubmit((data) => {
+  const onSubmit = handleSubmit(async (data) => {
     const fallback = data.email.split("@")[0] || "Guest";
     const display = (data.name || fallback).trim();
-    onLogin({ name: display.charAt(0).toUpperCase() + display.slice(1), role });
+    await onLogin({
+      name: display.charAt(0).toUpperCase() + display.slice(1),
+      role,
+      email: data.email,
+      password: data.password,
+    });
     toast.success(mode === "signin" ? `Welcome back, ${role}` : "Account created");
   });
 

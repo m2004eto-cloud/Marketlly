@@ -8,6 +8,8 @@ import { z } from "zod";
 import { HeaderControls } from "./HeaderControls";
 import { Editable } from "./Editable";
 import { useCatalog } from "../PostAdCatalogContext";
+import { listingsApi } from "@marketly/core";
+import { useAuth } from "../AuthContext";
 
 const detailsSchema = z.object({
   title: z.string().min(8, "Title must be at least 8 characters").max(80, "Title is too long"),
@@ -26,7 +28,7 @@ const contactSchema = z.object({
 type DetailsValues = z.infer<typeof detailsSchema>;
 type ContactValues = z.infer<typeof contactSchema>;
 
-type Props = { onBack: () => void };
+type Props = { onBack: () => void; onCreated?: (id: number) => void };
 type Cat = "motors" | "classifieds";
 
 type Field =
@@ -337,9 +339,10 @@ const classifiedsFields: Field[] = [
   { key: "warranty", label: "Warranty", type: "pill-single", opts: ["Yes - Manufacturer", "Yes - Seller", "No"] },
 ];
 
-export function PostAd({ onBack }: Props) {
+export function PostAd({ onBack, onCreated }: Props) {
   const { t } = useTranslation();
   const { catalog } = useCatalog();
+  const { user } = useAuth();
 
   // Build motors field definitions from live catalog context
   const motorsFields: Field[] = [
@@ -423,9 +426,32 @@ export function PostAd({ onBack }: Props) {
 
   const removePhoto = (i: number) => setPhotos((p) => p.filter((_, idx) => idx !== i));
 
-  const submit = contactForm.handleSubmit(() => {
+  const submit = contactForm.handleSubmit(async () => {
+    const details = detailsForm.getValues();
+    const res = await listingsApi.createListing({
+      title: details.title,
+      price: Number(details.price),
+      location: details.location,
+      category: cat || "classifieds",
+      make: meta.make,
+      model: meta.model,
+      img: photos[0] || "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=800",
+      description: details.description,
+      ownerId: user?.id,
+      ownerName: user?.name,
+      role: user?.role,
+    });
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
     setStep(4);
-    toast.success(t("post.success"));
+    toast.success(
+      res.data.status === "pending"
+        ? `${t("post.success")} (pending review)`
+        : t("post.success"),
+    );
+    onCreated?.(res.data.id);
   });
 
   const goToPhotos = detailsForm.handleSubmit(() => setStep(3));

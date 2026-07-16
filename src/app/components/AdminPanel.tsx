@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft, LayoutDashboard, FileText, Users, Flag, BarChart3, Settings,
   Search, CheckCircle2, XCircle, Trash2, Eye, ShieldCheck, ShieldOff,
@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { HeaderControls } from "./HeaderControls";
-import { LISTINGS, Listing } from "../data";
+import { listingsApi, type Listing, type ListingStatus as CoreListingStatus } from "@marketly/core";
 import { ElementsEditor } from "./ElementsEditor";
 import { useElements } from "../ElementsContext";
 import { AuctionAdmin } from "./AuctionAdmin";
@@ -29,8 +29,8 @@ type Tab =
   | "financial"
   | "analytics" | "frontend" | "elements" | "catalog"
   | "settings";
-type ListingStatus = "pending" | "approved" | "rejected";
-type AdminListing = Listing & { status: ListingStatus; seller: string; sellerRole: "customer" | "dealer" };
+type ListingStatus = CoreListingStatus;
+type AdminListing = Listing & { seller: string; sellerRole: "customer" | "dealer" };
 
 type UserPermissions = {
   canBrowseMotors: boolean; canBrowseClassifieds: boolean; canBrowseAuctions: boolean;
@@ -122,13 +122,23 @@ export function AdminPanel({ onBack, admin, onViewAuction }: Props) {
   const { auctions } = useAuction();
   const liveAuctions = auctions.filter((a) => getStatus(a) === "live").length;
   const [tab, setTab] = useState<Tab>("dashboard");
-  const [listings, setListings] = useState<AdminListing[]>(() =>
-    LISTINGS.map((l, i) => {
+  const toAdmin = (list: Listing[]): AdminListing[] =>
+    list.map((l, i) => {
       const nonAdmins = seedUsers.filter((s) => s.role !== "admin");
       const u = nonAdmins[i % nonAdmins.length] || seedUsers[i % seedUsers.length];
-      return { ...l, status: i % 4 === 0 ? "pending" : i % 7 === 0 ? "rejected" : "approved", seller: u.name, sellerRole: u.role === "dealer" ? "dealer" : "customer" };
-    })
-  );
+      return {
+        ...l,
+        seller: l.ownerName || u.name,
+        sellerRole: (l.ownerId?.includes("dealer") ? "dealer" : u.role === "dealer" ? "dealer" : "customer") as "customer" | "dealer",
+      };
+    });
+
+  const [listings, setListings] = useState<AdminListing[]>(() => toAdmin(listingsApi.getAllListingsSync()));
+
+  useEffect(() => {
+    const refresh = () => setListings(toAdmin(listingsApi.getAllListingsSync()));
+    return listingsApi.subscribeListings(refresh);
+  }, []);
   const [users, setUsers] = useState<AdminUser[]>(seedUsers);
   const [reports, setReports] = useState<Report[]>(seedReports);
   const [listingScope, setListingScope] = useState<"all" | "customer" | "dealer">("all");
@@ -193,8 +203,20 @@ export function AdminPanel({ onBack, admin, onViewAuction }: Props) {
       (q === "" || l.title.toLowerCase().includes(q.toLowerCase()) || l.seller.toLowerCase().includes(q.toLowerCase()))
   );
 
-  const setStatus = (id: number, status: ListingStatus) => { setListings((ls) => ls.map((l) => (l.id === id ? { ...l, status } : l))); toast.success(`Listing ${status}`); };
-  const removeListing = (id: number) => { setListings((ls) => ls.filter((l) => l.id !== id)); toast.success("Listing deleted"); };
+  const setStatus = async (id: number, status: ListingStatus) => {
+    const res = await listingsApi.updateListingStatus(id, status);
+    if (res.ok) {
+      setListings(toAdmin(listingsApi.getAllListingsSync()));
+      toast.success(`Listing ${status}`);
+    } else toast.error(res.error);
+  };
+  const removeListing = async (id: number) => {
+    const res = await listingsApi.removeListing(id);
+    if (res.ok) {
+      setListings(toAdmin(listingsApi.getAllListingsSync()));
+      toast.success("Listing deleted");
+    } else toast.error(res.error);
+  };
   const toggleVerify = (id: number) => { setUsers((us) => us.map((u) => (u.id === id ? { ...u, verified: !u.verified } : u))); toast.success("Verification updated"); };
   const toggleBan = (id: number) => {
     setUsers((us) => us.map((u) => {

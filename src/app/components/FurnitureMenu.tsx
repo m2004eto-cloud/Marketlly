@@ -24,7 +24,7 @@ type Props = {
 export function FurnitureMenu({ onPick, onClose }: Props) {
   const [active, setActive] = useState("furniture");
   const current = cats.find((c) => c.id === active) || cats[0];
-  const choose = (q?: string) => { onPick({ category: "classifieds", q: q || "" }); onClose(); };
+  const choose = (q?: string) => { onPick({ category: "furniture", q: q || "" }); onClose(); };
 
   return (
     <div

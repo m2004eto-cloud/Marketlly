@@ -1,11 +1,32 @@
+# Marketly
 
-  # Marketplace platform development
+UAE marketplace — web app, shared mock API, and separate iOS / Android Expo apps.
 
-  This is a code bundle for Marketplace platform development. The original project is available at https://www.figma.com/design/5WfUZRMujXxEdIRZrU9mDL/Marketplace-platform-development.
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for routes and package layout.
 
-  ## Running the code
+## Web
 
-  Run `npm i` to install the dependencies.
+```bash
+npm i
+npm run dev
+```
 
-  Run `npm run dev` to start the development server.
-  
+Build: `npm run build`
+
+## Mobile (Expo)
+
+```bash
+npm run mobile
+```
+
+Or:
+
+```bash
+npm --prefix apps/mobile start
+```
+
+iOS and Android UI live in separate folders under `apps/mobile/src/platforms/`.
+
+## Shared API
+
+`packages/core` provides listings, auth session, and CMS used by web + mobile.
