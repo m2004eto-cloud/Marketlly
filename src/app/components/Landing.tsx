@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   Search, MapPin, Bell, BookmarkCheck, Heart, MessageCircle, UserCog, X,
-  Car, Tag, ArrowRight, Gavel, Flame,
+  Car, Tag, ArrowRight, Smartphone, Gavel, Flame,
   ChevronDown, User, Globe, FileText, BadgeCheck, Calendar, Wrench, Bookmark, Settings, LogOut, ShieldCheck,
 } from "lucide-react";
 import { useAuction, getStatus, useCountdown } from "../AuctionContext";
