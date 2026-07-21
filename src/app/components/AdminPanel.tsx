@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  ArrowLeft, LayoutDashboard, FileText, Users, Flag, BarChart3, Settings,
+  LayoutDashboard, FileText, Users, Flag, BarChart3, Settings,
   Search, CheckCircle2, XCircle, Trash2, Eye, ShieldCheck, ShieldOff,
   TrendingUp, DollarSign, Tag, AlertTriangle, Ban, UserCheck,
   Activity, Zap, Globe2, Building2, User as UserIcon, Sparkles, Clock, ArrowUpRight, ArrowDownRight,
   Wand2, Car, Smartphone, MapPin, MessageCircle, Image as ImageIcon, Heart, MousePointerClick, Gavel,
   ChevronRight, X, Edit3, Shield, Plus, Mail, Phone, Calendar, Download, Bell,
   Layers, Monitor, Sliders, Info, UserPlus, CreditCard, Percent, Landmark, Package,
-  RefreshCw, Receipt,
+  RefreshCw, Receipt, LogOut, PanelLeftClose, PanelLeftOpen, Store,
 } from "lucide-react";
 import { toast } from "sonner";
 import { HeaderControls } from "./HeaderControls";
@@ -33,7 +33,12 @@ import { CatalogEditor } from "./CatalogEditor";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Props = { onBack: () => void; admin: { name: string }; onViewAuction?: (id: string) => void };
+type Props = {
+  onBack: () => void;
+  onLogout: () => void | Promise<void>;
+  admin: { name: string };
+  onViewAuction?: (id: string) => void;
+};
 type Tab =
   | "dashboard" | "listings" | "auction" | "reports"
   | "users" | "dealers"
@@ -132,10 +137,12 @@ type NavGroup = {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function AdminPanel({ onBack, admin, onViewAuction }: Props) {
+export function AdminPanel({ onBack, onLogout, admin, onViewAuction }: Props) {
   const { auctions } = useAuction();
   const liveAuctions = auctions.filter((a) => getStatus(a) === "live").length;
   const [tab, setTab] = useState<Tab>("dashboard");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [loggingOut, setLoggingOut] = useState(false);
   const toAdmin = (list: Listing[]): AdminListing[] => {
     const accounts = authApi.listAccountsSync().filter((a) => a.role !== "admin");
     return list.map((l, i) => {
@@ -324,38 +331,77 @@ export function AdminPanel({ onBack, admin, onViewAuction }: Props) {
   };
   const resolveReport = (id: number) => { setReports((rs) => rs.map((r) => (r.id === id ? { ...r, status: "resolved" } : r))); toast.success("Report resolved"); };
 
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await onLogout();
+      toast.success("Signed out");
+    } catch {
+      toast.error("Could not sign out");
+      setLoggingOut(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">
       {/* Top header */}
       <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-20">
-        <div className="w-full px-4 h-14 flex items-center gap-3">
-          <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 transition">
-            <ArrowLeft className="size-4" /> Back
+        <div className="w-full px-4 h-14 flex items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition"
+            title="Back to store"
+          >
+            <Store className="size-4" />
+            <span className="hidden sm:inline">Back to store</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSidebarOpen((v) => !v)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition"
+            title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
+            aria-pressed={!sidebarOpen}
+          >
+            {sidebarOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
+            <span className="hidden sm:inline">{sidebarOpen ? "Hide" : "Unhide"}</span>
           </button>
           <div className="w-px h-5 bg-slate-200 dark:bg-slate-700" />
-          <div className="flex items-center gap-2.5">
-            <span className="size-8 rounded-lg bg-gradient-to-br from-blue-600 to-violet-700 text-white flex items-center justify-center shadow">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="size-8 rounded-lg bg-gradient-to-br from-blue-600 to-violet-700 text-white flex items-center justify-center shadow shrink-0">
               <ShieldCheck className="size-4" />
             </span>
-            <div className="leading-tight">
-              <p className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100">Admin Panel</p>
-              <p className="text-[10px] text-slate-400 uppercase tracking-widest">Marketly · Operations Console</p>
+            <div className="leading-tight min-w-0">
+              <p className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100 truncate">Admin Panel</p>
+              <p className="text-[10px] text-slate-400 uppercase tracking-widest hidden sm:block">Marketly · Operations Console</p>
             </div>
           </div>
           <div className="ms-auto flex items-center gap-2">
-            <span className="hidden sm:inline text-xs text-slate-500">
+            <span className="hidden md:inline text-xs text-slate-500">
               Signed in as <span className="text-slate-800 dark:text-slate-200 font-semibold">{admin.name}</span>
             </span>
-            <span className="size-7 rounded-full bg-gradient-to-br from-blue-500 to-violet-600 text-white flex items-center justify-center text-xs font-bold">
+            <span className="size-7 rounded-full bg-gradient-to-br from-blue-500 to-violet-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
               {admin.name.charAt(0)}
             </span>
             <HeaderControls />
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              disabled={loggingOut}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900 transition disabled:opacity-60"
+              title="Log out"
+            >
+              <LogOut className="size-4" />
+              <span className="hidden sm:inline">{loggingOut ? "Signing out…" : "Logout"}</span>
+            </button>
           </div>
         </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
+        {sidebarOpen && (
         <aside className="w-56 shrink-0 bg-slate-900 dark:bg-[#0b0f1a] border-e border-slate-800 flex flex-col overflow-y-auto" style={{ minHeight: "calc(100vh - 56px)" }}>
           <div className="py-3 flex-1">
             {navGroups.map((group, gi) => (
@@ -384,7 +430,7 @@ export function AdminPanel({ onBack, admin, onViewAuction }: Props) {
           </div>
 
           {/* Sidebar footer */}
-          <div className="px-4 py-3 border-t border-slate-800">
+          <div className="px-4 py-3 border-t border-slate-800 space-y-2">
             <div className="flex items-center gap-2.5">
               <span className="size-2 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/50" />
               <div className="text-[11px]">
@@ -392,8 +438,24 @@ export function AdminPanel({ onBack, admin, onViewAuction }: Props) {
                 <p className="text-emerald-400">Operational</p>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={onBack}
+              className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition"
+            >
+              <Store className="size-3.5" /> Back to store
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              disabled={loggingOut}
+              className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium text-rose-300 hover:text-rose-100 hover:bg-rose-950/40 transition disabled:opacity-60"
+            >
+              <LogOut className="size-3.5" /> {loggingOut ? "Signing out…" : "Logout"}
+            </button>
           </div>
         </aside>
+        )}
 
         {/* Main */}
         <main className="flex-1 overflow-auto p-5">

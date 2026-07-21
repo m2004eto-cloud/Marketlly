@@ -4,12 +4,16 @@ import { useAuth } from "../../app/AuthContext";
 
 export function AdminPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   if (!user) return null;
   return (
     <AdminPanel
       admin={{ name: user.name }}
       onBack={() => navigate("/")}
+      onLogout={async () => {
+        await logout();
+        navigate("/auth");
+      }}
       onViewAuction={(id) => navigate(`/auctions/${id}`)}
     />
   );
