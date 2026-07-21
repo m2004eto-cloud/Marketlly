@@ -16,10 +16,12 @@ import {
   authApi,
   DEFAULT_CUSTOMER_PERMISSIONS,
   DEFAULT_DEALER_PERMISSIONS,
+  DEFAULT_ADMIN_PERMISSIONS,
   BANNED_PERMISSIONS,
   type Listing,
   type ListingStatus as CoreListingStatus,
   type FrontendPermissions,
+  type UserRole,
 } from "@marketly/core";
 import { ElementsEditor } from "./ElementsEditor";
 import { useElements } from "../ElementsContext";
@@ -48,34 +50,9 @@ type AdminUser = {
   role: "customer" | "dealer" | "admin";
   verified: boolean; banned: boolean; kycStatus: "none" | "pending" | "verified";
   ads: number; joined: string; lastActive: string; location: string; notes: string;
+  tradeLicense?: string;
   permissions: UserPermissions;
 };
-
-type AdminProfileMeta = {
-  phone?: string;
-  location?: string;
-  notes?: string;
-  kycStatus?: AdminUser["kycStatus"];
-  ads?: number;
-  lastActive?: string;
-};
-
-const ADMIN_META_KEY = "marketly_admin_user_meta_v1";
-
-function loadAdminMeta(): Record<string, AdminProfileMeta> {
-  try {
-    const raw = localStorage.getItem(ADMIN_META_KEY);
-    return raw ? (JSON.parse(raw) as Record<string, AdminProfileMeta>) : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveAdminMeta(meta: Record<string, AdminProfileMeta>) {
-  try {
-    localStorage.setItem(ADMIN_META_KEY, JSON.stringify(meta));
-  } catch { /* ignore */ }
-}
 
 type Report = {
   id: number; listingId: number; reason: string;
@@ -96,59 +73,39 @@ const DEFAULT_CUSTOMER_PERMS: UserPermissions = { ...DEFAULT_CUSTOMER_PERMISSION
 const DEFAULT_DEALER_PERMS: UserPermissions = { ...DEFAULT_DEALER_PERMISSIONS };
 const BANNED_PERMS: UserPermissions = { ...BANNED_PERMISSIONS };
 
-// ─── Seed Data ────────────────────────────────────────────────────────────────
-
-const seedUsers: AdminUser[] = [
-  { id: "seed-1", name: "Ahmed Al Mansoori", email: "ahmed@example.ae", phone: "+971 50 123 4567", role: "dealer", verified: true, banned: false, kycStatus: "verified", ads: 24, joined: "2025-08-12", lastActive: "2026-07-15", location: "Dubai", notes: "Premium Motors partner. Top seller Q1-Q2 2026.", permissions: DEFAULT_DEALER_PERMS },
-  { id: "seed-2", name: "Sara Khan", email: "sara.k@example.com", phone: "+971 55 987 6543", role: "customer", verified: false, banned: false, kycStatus: "pending", ads: 3, joined: "2026-01-04", lastActive: "2026-07-10", location: "Abu Dhabi", notes: "", permissions: DEFAULT_CUSTOMER_PERMS },
-  { id: "seed-3", name: "Premium Motors LLC", email: "sales@premiummotors.ae", phone: "+971 4 321 0987", role: "dealer", verified: true, banned: false, kycStatus: "verified", ads: 87, joined: "2024-11-20", lastActive: "2026-07-16", location: "Dubai", notes: "Enterprise account. Dedicated account manager: Rania.", permissions: { ...DEFAULT_DEALER_PERMS, maxAdsPerMonth: 500 } },
-  { id: "seed-4", name: "Omar Hassan", email: "omar@example.ae", phone: "+971 52 456 7890", role: "customer", verified: false, banned: true, kycStatus: "none", ads: 1, joined: "2026-02-18", lastActive: "2026-04-01", location: "Sharjah", notes: "Banned: fraudulent listings. Case #2026-0318.", permissions: BANNED_PERMS },
-  { id: "seed-5", name: "Layla Ibrahim", email: "layla@example.ae", phone: "+971 54 654 3210", role: "customer", verified: true, banned: false, kycStatus: "verified", ads: 6, joined: "2025-12-01", lastActive: "2026-07-14", location: "Dubai", notes: "", permissions: DEFAULT_CUSTOMER_PERMS },
-  { id: "seed-6", name: "Gulf Auto Trade", email: "ops@gulfauto.ae", phone: "+971 4 111 2233", role: "dealer", verified: false, banned: false, kycStatus: "pending", ads: 12, joined: "2026-03-22", lastActive: "2026-07-12", location: "Ajman", notes: "KYC docs submitted 2026-07-01. Awaiting legal review.", permissions: DEFAULT_DEALER_PERMS },
-  { id: "seed-7", name: "Fatima Al Zaabi", email: "fatima.z@example.ae", phone: "+971 56 789 0123", role: "customer", verified: true, banned: false, kycStatus: "verified", ads: 2, joined: "2026-05-14", lastActive: "2026-07-16", location: "Abu Dhabi", notes: "", permissions: DEFAULT_CUSTOMER_PERMS },
-  { id: "seed-8", name: "Tech Gadgets Store", email: "sales@techgadgets.ae", phone: "+971 4 555 7777", role: "dealer", verified: true, banned: false, kycStatus: "verified", ads: 44, joined: "2025-06-30", lastActive: "2026-07-15", location: "Dubai", notes: "Electronics specialist. Featured dealer.", permissions: { ...DEFAULT_DEALER_PERMS, maxAdsPerMonth: 200 } },
-];
+// ─── Auth → Admin mapping ─────────────────────────────────────────────────────
 
 function accountToAdminUser(
   account: ReturnType<typeof authApi.listAccountsSync>[number],
-  seed?: AdminUser,
-  meta?: AdminProfileMeta,
 ): AdminUser {
   const roleDefaults =
     account.role === "dealer"
       ? DEFAULT_DEALER_PERMS
       : account.role === "admin"
-        ? { ...DEFAULT_DEALER_PERMS, maxAdsPerMonth: 9999 }
+        ? { ...DEFAULT_ADMIN_PERMISSIONS }
         : DEFAULT_CUSTOMER_PERMS;
   return {
     id: account.id,
     name: account.name,
     email: account.email,
-    phone: meta?.phone || seed?.phone || (account.tradeLicense ? `TL: ${account.tradeLicense}` : "—"),
+    phone: account.phone || (account.tradeLicense ? `TL: ${account.tradeLicense}` : "—"),
     role: account.role,
     verified: account.verified,
     banned: account.banned,
-    kycStatus: meta?.kycStatus || seed?.kycStatus || (account.verified ? "verified" : account.role === "dealer" ? "pending" : "none"),
-    ads: meta?.ads ?? seed?.ads ?? 0,
-    joined: account.createdAt || seed?.joined || new Date().toISOString().slice(0, 10),
-    lastActive: meta?.lastActive || seed?.lastActive || new Date().toISOString().slice(0, 10),
-    location: meta?.location || seed?.location || "UAE",
-    notes: meta?.notes || seed?.notes || (account.tradeLicense ? `Trade License: ${account.tradeLicense}` : ""),
+    kycStatus: account.kycStatus || (account.verified ? "verified" : account.role === "dealer" ? "pending" : "none"),
+    ads: account.ads ?? 0,
+    joined: account.createdAt || new Date().toISOString().slice(0, 10),
+    lastActive: account.lastActive || new Date().toISOString().slice(0, 10),
+    location: account.location || "UAE",
+    notes: account.notes || "",
+    tradeLicense: account.tradeLicense,
     permissions: { ...roleDefaults, ...account.permissions },
   };
 }
 
-/** Merge real auth signups with demo seed profiles so Admin Dealers/Users stay in sync. */
+/** Single source of truth: auth accounts only. */
 function loadAdminUsers(): AdminUser[] {
-  const accounts = authApi.listAccountsSync();
-  const meta = loadAdminMeta();
-  const seedByEmail = Object.fromEntries(seedUsers.map((u) => [u.email.toLowerCase(), u]));
-  const fromAuth = accounts.map((a) =>
-    accountToAdminUser(a, seedByEmail[a.email.toLowerCase()], meta[a.email.toLowerCase()]),
-  );
-  const authEmails = new Set(fromAuth.map((u) => u.email.toLowerCase()));
-  const seedOnly = seedUsers.filter((s) => !authEmails.has(s.email.toLowerCase()));
-  return [...fromAuth, ...seedOnly];
+  return authApi.listAccountsSync().map(accountToAdminUser);
 }
 
 const seedReports: Report[] = [
@@ -179,16 +136,21 @@ export function AdminPanel({ onBack, admin, onViewAuction }: Props) {
   const { auctions } = useAuction();
   const liveAuctions = auctions.filter((a) => getStatus(a) === "live").length;
   const [tab, setTab] = useState<Tab>("dashboard");
-  const toAdmin = (list: Listing[]): AdminListing[] =>
-    list.map((l, i) => {
-      const nonAdmins = seedUsers.filter((s) => s.role !== "admin");
-      const u = nonAdmins[i % nonAdmins.length] || seedUsers[i % seedUsers.length];
+  const toAdmin = (list: Listing[]): AdminListing[] => {
+    const accounts = authApi.listAccountsSync().filter((a) => a.role !== "admin");
+    return list.map((l, i) => {
+      const byOwner =
+        accounts.find((a) => a.id === l.ownerId) ||
+        accounts.find((a) => a.name === l.ownerName);
+      const fallback = accounts[i % Math.max(accounts.length, 1)];
+      const u = byOwner || fallback;
       return {
         ...l,
-        seller: l.ownerName || u.name,
-        sellerRole: (l.ownerId?.includes("dealer") ? "dealer" : u.role === "dealer" ? "dealer" : "customer") as "customer" | "dealer",
+        seller: l.ownerName || u?.name || "Unknown",
+        sellerRole: (l.ownerId?.includes("dealer") || u?.role === "dealer" ? "dealer" : "customer") as "customer" | "dealer",
       };
     });
+  };
 
   const [listings, setListings] = useState<AdminListing[]>(() => toAdmin(listingsApi.getAllListingsSync()));
 
@@ -278,66 +240,87 @@ export function AdminPanel({ onBack, admin, onViewAuction }: Props) {
       toast.success("Listing deleted");
     } else toast.error(res.error);
   };
-  const toggleVerify = (id: string) => {
-    setUsers((us) => {
-      const next = us.map((u) => (u.id === id ? { ...u, verified: !u.verified } : u));
-      const target = next.find((u) => u.id === id);
-      if (target) {
-        void authApi.updateAccountFlags(target.email, { verified: target.verified });
-        const meta = loadAdminMeta();
-        const key = target.email.toLowerCase();
-        meta[key] = {
-          ...meta[key],
-          kycStatus: target.verified ? "verified" : target.role === "dealer" ? "pending" : "none",
-        };
-        saveAdminMeta(meta);
-      }
-      return next;
-    });
-    // Refresh from auth store so UI stays in sync
-    setTimeout(() => setUsers(loadAdminUsers()), 50);
+  const refreshUsers = () => setUsers(loadAdminUsers());
+
+  const toggleVerify = async (id: string) => {
+    const target = users.find((u) => u.id === id);
+    if (!target) return;
+    const res = await authApi.updateAccountFlags(target.email, { verified: !target.verified });
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    refreshUsers();
     toast.success("Verification updated");
   };
-  const toggleBan = (id: string) => {
-    setUsers((us) => {
-      const next = us.map((u) => {
-        if (u.id !== id) return u;
-        const nb = !u.banned;
-        return {
-          ...u,
-          banned: nb,
-          permissions: nb ? BANNED_PERMS : (u.role === "dealer" ? DEFAULT_DEALER_PERMS : DEFAULT_CUSTOMER_PERMS),
-        };
-      });
-      const target = next.find((u) => u.id === id);
-      if (target) {
-        void authApi.updateAccountFlags(target.email, { banned: target.banned });
-        void authApi.updateAccountPermissions(target.email, target.permissions);
-      }
-      return next;
-    });
-    setTimeout(() => setUsers(loadAdminUsers()), 50);
+
+  const toggleBan = async (id: string) => {
+    const target = users.find((u) => u.id === id);
+    if (!target) return;
+    const nextBanned = !target.banned;
+    const res = await authApi.updateAccountFlags(target.email, { banned: nextBanned });
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    if (!nextBanned) {
+      await authApi.updateAccountPermissions(
+        target.email,
+        target.role === "dealer"
+          ? DEFAULT_DEALER_PERMS
+          : target.role === "admin"
+            ? { ...DEFAULT_ADMIN_PERMISSIONS }
+            : DEFAULT_CUSTOMER_PERMS,
+      );
+    }
+    refreshUsers();
     toast.success("User status updated");
   };
-  const updateUser = (updated: AdminUser) => {
-    const meta = loadAdminMeta();
-    meta[updated.email.toLowerCase()] = {
-      phone: updated.phone,
+
+  const updateUser = async (updated: AdminUser, previousEmail?: string) => {
+    const lookupEmail = previousEmail || updated.email;
+    const profileRes = await authApi.updateAccountProfile(lookupEmail, {
+      name: updated.name,
+      email: updated.email,
+      phone: updated.phone === "—" ? "" : updated.phone,
       location: updated.location,
       notes: updated.notes,
       kycStatus: updated.kycStatus,
+      tradeLicense: updated.tradeLicense,
       ads: updated.ads,
       lastActive: updated.lastActive,
-    };
-    saveAdminMeta(meta);
-    void authApi.updateAccountPermissions(updated.email, updated.permissions);
-    void authApi.updateAccountFlags(updated.email, {
+    });
+    if (!profileRes.ok) {
+      toast.error(profileRes.error);
+      return;
+    }
+    const email = profileRes.data.email;
+    const flagsRes = await authApi.updateAccountFlags(email, {
       banned: updated.banned,
       verified: updated.verified,
       name: updated.name,
     });
-    setTimeout(() => setUsers(loadAdminUsers()), 50);
-    toast.success("User updated — frontend permissions synced");
+    if (!flagsRes.ok) {
+      toast.error(flagsRes.error);
+      return;
+    }
+    const permsRes = await authApi.updateAccountPermissions(email, updated.permissions);
+    if (!permsRes.ok) {
+      toast.error(permsRes.error);
+      return;
+    }
+    refreshUsers();
+    toast.success("User updated — synced to auth store");
+  };
+
+  const deleteUser = async (email: string) => {
+    const res = await authApi.deleteAccount(email);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    refreshUsers();
+    toast.success("Account deleted");
   };
   const resolveReport = (id: number) => { setReports((rs) => rs.map((r) => (r.id === id ? { ...r, status: "resolved" } : r))); toast.success("Report resolved"); };
 
@@ -489,6 +472,7 @@ export function AdminPanel({ onBack, admin, onViewAuction }: Props) {
               onUpdateUser={updateUser}
               onToggleVerify={toggleVerify}
               onToggleBan={toggleBan}
+              onDeleteUser={deleteUser}
               listings={listings}
             />
           )}
@@ -501,6 +485,7 @@ export function AdminPanel({ onBack, admin, onViewAuction }: Props) {
               onUpdateUser={updateUser}
               onToggleVerify={toggleVerify}
               onToggleBan={toggleBan}
+              onDeleteUser={deleteUser}
               listings={listings}
             />
           )}
@@ -555,29 +540,72 @@ export function AdminPanel({ onBack, admin, onViewAuction }: Props) {
 
 // ─── Users Section ────────────────────────────────────────────────────────────
 
-function UsersSection({ users, allUsers, scopeLabel, variant = "user", onUpdateUser, onToggleVerify, onToggleBan, listings }: {
+function UsersSection({ users, allUsers, scopeLabel, variant = "user", onUpdateUser, onToggleVerify, onToggleBan, onDeleteUser, listings }: {
   users: AdminUser[]; allUsers?: AdminUser[]; scopeLabel: string;
   variant?: "user" | "dealer";
-  onUpdateUser: (u: AdminUser) => void; onToggleVerify: (id: string) => void;
-  onToggleBan: (id: string) => void; listings: AdminListing[];
+  onUpdateUser: (u: AdminUser, previousEmail?: string) => void | Promise<void>;
+  onToggleVerify: (id: string) => void | Promise<void>;
+  onToggleBan: (id: string) => void | Promise<void>;
+  onDeleteUser: (email: string) => void | Promise<void>;
+  listings: AdminListing[];
 }) {
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+  const [originalEmail, setOriginalEmail] = useState<string | null>(null);
   const [drawerTab, setDrawerTab] = useState<"profile" | "permissions" | "listings" | "notes">("profile");
   const [searchQ, setSearchQ] = useState("");
   const [kycFilter, setKycFilter] = useState<"all" | "verified" | "pending" | "none">("all");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [addForm, setAddForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    password: "temp1234",
+    role: (variant === "dealer" ? "dealer" : "customer") as UserRole,
+    tradeLicense: "",
+    location: "UAE",
+  });
 
-  const source = allUsers || users;
+  // Close drawer if the selected account was deleted from the auth store.
+  useEffect(() => {
+    if (!selectedUser) return;
+    const exists = (allUsers || users).some(
+      (u) => u.id === selectedUser.id || u.email === (originalEmail || selectedUser.email),
+    );
+    if (!exists) {
+      setSelectedUser(null);
+      setEditingUser(null);
+      setOriginalEmail(null);
+    }
+  }, [users, allUsers, selectedUser, originalEmail]);
+
   const filtered = users.filter((u) => {
     const matchSearch = !searchQ || u.name.toLowerCase().includes(searchQ.toLowerCase()) || u.email.toLowerCase().includes(searchQ.toLowerCase());
     const matchKyc = kycFilter === "all" || u.kycStatus === kycFilter;
     return matchSearch && matchKyc;
   });
 
-  const openDrawer = (u: AdminUser) => { setSelectedUser(u); setEditingUser({ ...u }); setDrawerTab("profile"); };
-  const closeDrawer = () => { setSelectedUser(null); setEditingUser(null); };
-  const saveEdits = () => { if (editingUser) { onUpdateUser(editingUser); setSelectedUser(editingUser); } };
+  const openDrawer = (u: AdminUser) => {
+    setSelectedUser(u);
+    setEditingUser({ ...u });
+    setOriginalEmail(u.email);
+    setNewPassword("");
+    setDrawerTab("profile");
+  };
+  const closeDrawer = () => {
+    setSelectedUser(null);
+    setEditingUser(null);
+    setOriginalEmail(null);
+    setNewPassword("");
+  };
+  const saveEdits = async () => {
+    if (!editingUser) return;
+    await onUpdateUser(editingUser, originalEmail || undefined);
+    setSelectedUser(editingUser);
+    setOriginalEmail(editingUser.email);
+  };
   const updatePerm = (key: keyof UserPermissions, val: boolean | number) => {
     if (!editingUser) return;
     setEditingUser({ ...editingUser, permissions: { ...editingUser.permissions, [key]: val } });
@@ -587,6 +615,66 @@ function UsersSection({ users, allUsers, scopeLabel, variant = "user", onUpdateU
     const presets = { customer: DEFAULT_CUSTOMER_PERMS, dealer: DEFAULT_DEALER_PERMS, banned: BANNED_PERMS };
     setEditingUser({ ...editingUser, permissions: presets[preset] });
     toast(`Applied ${preset} preset`);
+  };
+  const changeRole = async (role: UserRole) => {
+    if (!editingUser) return;
+    const res = await authApi.updateAccountRole(originalEmail || editingUser.email, role);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    const mapped = accountToAdminUser(res.data);
+    setEditingUser(mapped);
+    setSelectedUser(mapped);
+    setOriginalEmail(mapped.email);
+    toast.success(`Role updated to ${role}`);
+  };
+  const resetPassword = async () => {
+    if (!editingUser || newPassword.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+    const res = await authApi.setPassword(originalEmail || editingUser.email, newPassword);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    setNewPassword("");
+    toast.success("Password reset");
+  };
+  const handleDelete = async () => {
+    if (!selectedUser) return;
+    if (!window.confirm(`Delete account ${selectedUser.email}? This cannot be undone.`)) return;
+    await onDeleteUser(selectedUser.email);
+    closeDrawer();
+  };
+  const createUser = async () => {
+    setCreating(true);
+    const res = await authApi.adminCreateAccount({
+      name: addForm.name,
+      email: addForm.email,
+      password: addForm.password,
+      role: addForm.role,
+      phone: addForm.phone || undefined,
+      tradeLicense: addForm.tradeLicense || undefined,
+      location: addForm.location || undefined,
+    });
+    setCreating(false);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success(`${addForm.role} account created`);
+    setShowAddModal(false);
+    setAddForm({
+      name: "",
+      email: "",
+      phone: "",
+      password: "temp1234",
+      role: variant === "dealer" ? "dealer" : "customer",
+      tradeLicense: "",
+      location: "UAE",
+    });
   };
   const userListings = selectedUser ? listings.filter((l) => l.seller === selectedUser.name) : [];
 
@@ -736,6 +824,8 @@ function UsersSection({ users, allUsers, scopeLabel, variant = "user", onUpdateU
                   {[
                     { label: "Name", key: "name" as const, type: "text" },
                     { label: "Email", key: "email" as const, type: "email" },
+                    { label: "Phone", key: "phone" as const, type: "text" },
+                    { label: "Location", key: "location" as const, type: "text" },
                   ].map((f) => (
                     <div key={f.key}>
                       <label className="text-xs text-slate-500 block mb-1">{f.label}</label>
@@ -745,6 +835,28 @@ function UsersSection({ users, allUsers, scopeLabel, variant = "user", onUpdateU
                     </div>
                   ))}
                   <div>
+                    <label className="text-xs text-slate-500 block mb-1">Role</label>
+                    <select
+                      value={editingUser.role}
+                      onChange={(e) => void changeRole(e.target.value as UserRole)}
+                      className="w-full px-2.5 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none"
+                    >
+                      <option value="customer">Customer</option>
+                      <option value="dealer">Dealer</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+                  {editingUser.role === "dealer" && (
+                    <div>
+                      <label className="text-xs text-slate-500 block mb-1">Trade License</label>
+                      <input
+                        value={editingUser.tradeLicense || ""}
+                        onChange={(e) => setEditingUser({ ...editingUser, tradeLicense: e.target.value })}
+                        className="w-full px-2.5 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none focus:border-blue-500"
+                      />
+                    </div>
+                  )}
+                  <div>
                     <label className="text-xs text-slate-500 block mb-1">KYC Status</label>
                     <select value={editingUser.kycStatus} onChange={(e) => setEditingUser({ ...editingUser, kycStatus: e.target.value as AdminUser["kycStatus"] })}
                       className="w-full px-2.5 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none">
@@ -753,19 +865,45 @@ function UsersSection({ users, allUsers, scopeLabel, variant = "user", onUpdateU
                       <option value="verified">Verified</option>
                     </select>
                   </div>
-                  <button onClick={saveEdits}
+                  <div>
+                    <label className="text-xs text-slate-500 block mb-1">Reset password</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="New password (min 6)"
+                        className="flex-1 px-2.5 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none focus:border-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void resetPassword()}
+                        className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      >
+                        Set
+                      </button>
+                    </div>
+                  </div>
+                  <button onClick={() => void saveEdits()}
                     className="w-full py-1.5 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition font-medium">Save Changes</button>
                 </div>
                 <div className="flex gap-2 pt-1">
-                  <button onClick={() => { onToggleVerify(selectedUser.id); setSelectedUser((u) => u ? { ...u, verified: !u.verified } : u); }}
+                  <button onClick={() => void onToggleVerify(selectedUser.id)}
                     className="flex-1 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center justify-center gap-1">
                     {selectedUser.verified ? <><ShieldOff className="size-3" /> Unverify</> : <><ShieldCheck className="size-3" /> Verify</>}
                   </button>
-                  <button onClick={() => { onToggleBan(selectedUser.id); setSelectedUser((u) => u ? { ...u, banned: !u.banned } : u); }}
+                  <button onClick={() => void onToggleBan(selectedUser.id)}
                     className={`flex-1 py-1.5 text-xs rounded-lg border transition flex items-center justify-center gap-1 ${selectedUser.banned ? "border-emerald-200 text-emerald-700 hover:bg-emerald-50" : "border-rose-200 text-rose-600 hover:bg-rose-50"}`}>
                     <Ban className="size-3" />{selectedUser.banned ? "Unban" : "Ban"}
                   </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => void handleDelete()}
+                  className="w-full py-1.5 text-xs rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 transition flex items-center justify-center gap-1"
+                >
+                  <Trash2 className="size-3" /> Delete account
+                </button>
               </div>
             )}
 
@@ -859,24 +997,96 @@ function UsersSection({ users, allUsers, scopeLabel, variant = "user", onUpdateU
       {showAddModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 w-full max-w-md p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-4"><h3 className="font-bold">Add New User</h3><button onClick={() => setShowAddModal(false)}><X className="size-4 text-slate-400" /></button></div>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold">Add New {variant === "dealer" ? "Dealer" : "User"}</h3>
+              <button type="button" onClick={() => setShowAddModal(false)}><X className="size-4 text-slate-400" /></button>
+            </div>
             <div className="space-y-3">
-              {[{ label: "Full Name", placeholder: "Ahmed Al Mansoori" }, { label: "Email", placeholder: "user@example.ae" }, { label: "Phone", placeholder: "+971 50 000 0000" }].map((f) => (
-                <div key={f.label}>
-                  <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">{f.label}</label>
-                  <input placeholder={f.placeholder} className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none focus:border-blue-500" />
-                </div>
-              ))}
+              <div>
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">Full Name</label>
+                <input
+                  value={addForm.name}
+                  onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="Ahmed Al Mansoori"
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">Email</label>
+                <input
+                  value={addForm.email}
+                  onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))}
+                  placeholder="user@example.ae"
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">Phone</label>
+                <input
+                  value={addForm.phone}
+                  onChange={(e) => setAddForm((f) => ({ ...f, phone: e.target.value }))}
+                  placeholder="+971 50 000 0000"
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">Temporary password</label>
+                <input
+                  value={addForm.password}
+                  onChange={(e) => setAddForm((f) => ({ ...f, password: e.target.value }))}
+                  placeholder="min 6 characters"
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none focus:border-blue-500"
+                />
+              </div>
               <div>
                 <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">Role</label>
-                <select className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none"><option>Customer</option><option>Dealer</option><option>Admin</option></select>
+                <select
+                  value={addForm.role}
+                  onChange={(e) => setAddForm((f) => ({ ...f, role: e.target.value as UserRole }))}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none"
+                >
+                  <option value="customer">Customer</option>
+                  <option value="dealer">Dealer</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              {addForm.role === "dealer" && (
+                <div>
+                  <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">Trade License</label>
+                  <input
+                    value={addForm.tradeLicense}
+                    onChange={(e) => setAddForm((f) => ({ ...f, tradeLicense: e.target.value }))}
+                    placeholder="CN-1234567"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none focus:border-blue-500"
+                  />
+                </div>
+              )}
+              <div>
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">Location</label>
+                <input
+                  value={addForm.location}
+                  onChange={(e) => setAddForm((f) => ({ ...f, location: e.target.value }))}
+                  placeholder="Dubai"
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none focus:border-blue-500"
+                />
               </div>
             </div>
             <div className="flex gap-2 mt-4">
-              <button onClick={() => { toast.success("User created"); setShowAddModal(false); }}
-                className="flex-1 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition">Create</button>
-              <button onClick={() => setShowAddModal(false)}
-                className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition">Cancel</button>
+              <button
+                type="button"
+                disabled={creating}
+                onClick={() => void createUser()}
+                className="flex-1 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition disabled:opacity-60"
+              >
+                {creating ? "Creating…" : "Create"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>

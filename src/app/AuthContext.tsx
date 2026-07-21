@@ -21,8 +21,6 @@ type AuthContextValue = {
     tradeLicense?: string;
     vatTrn?: string;
   }) => Promise<AuthResult>;
-  /** @deprecated use signIn */
-  login: (input: { email: string; password: string }) => Promise<boolean>;
   logout: () => Promise<void>;
 };
 
@@ -39,7 +37,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (res.ok) setUser(res.data);
       setLoading(false);
     });
-    return authApi.subscribeAuth(() => setUser(authApi.getSessionSync()));
+    // Refresh session when admin mutates accounts (permissions, ban, profile, etc.)
+    return authApi.subscribeAuth(() => {
+      setUser(authApi.getSessionSync());
+    });
   }, []);
 
   const signIn = useCallback(async (input: { email: string; password: string }): Promise<AuthResult> => {
@@ -67,11 +68,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { ok: false, error: res.error };
   }, []);
 
-  const login = useCallback(async (input: { email: string; password: string }) => {
-    const res = await signIn(input);
-    return res.ok;
-  }, [signIn]);
-
   const logout = useCallback(async () => {
     await authApi.logout();
     setUser(null);
@@ -95,10 +91,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       can,
       signIn,
       signUp,
-      login,
       logout,
     }),
-    [user, loading, can, signIn, signUp, login, logout],
+    [user, loading, can, signIn, signUp, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

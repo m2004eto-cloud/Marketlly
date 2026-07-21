@@ -33,6 +33,8 @@ export type SessionUser = {
   permissions: FrontendPermissions;
 };
 
+export type KycStatus = "none" | "pending" | "verified";
+
 export type AuthAccount = {
   id: string;
   name: string;
@@ -43,9 +45,19 @@ export type AuthAccount = {
   verified: boolean;
   tradeLicense?: string;
   vatTrn?: string;
+  /** Admin-managed profile fields */
+  phone?: string;
+  location?: string;
+  notes?: string;
+  kycStatus?: KycStatus;
+  ads?: number;
+  lastActive?: string;
   permissions: FrontendPermissions;
   createdAt: string;
 };
+
+/** Account returned by list/get APIs — never includes password. */
+export type PublicAccount = Omit<AuthAccount, "password">;
 
 export type ListingStatus = "pending" | "approved" | "rejected";
 
