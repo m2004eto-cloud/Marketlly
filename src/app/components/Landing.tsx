@@ -10,7 +10,6 @@ import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { HeaderControls } from "./HeaderControls";
 import { MotorsMenu } from "./MotorsMenu";
 import { ClassifiedsMenu } from "./ClassifiedsMenu";
-import { useApp } from "../AppContext";
 import { useAuth } from "../AuthContext";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -30,30 +29,19 @@ type Props = {
 const cityImg =
   "https://images.unsplash.com/photo-1518684079-3c830dcef090?w=1600&q=80";
 
-const popular: { id: string; label: string; icon: typeof Car; category: string; items: string[] }[] = [
-  { id: "motors", label: "Motors", icon: Car, category: "motors", items: ["Used Cars", "Rental Cars", "New Cars", "Export Cars"] },
-  { id: "classifieds", label: "Classifieds", icon: Tag, category: "classifieds", items: ["Electronics", "Computers & Networking", "Mobile Phones & Tablets", "Cameras & Imaging"] },
-];
-
-const navCats = [
-  { id: "motors", label: "Motors", badge: "" },
-  { id: "classifieds", label: "Classifieds", badge: "" },
-  { id: "auction", label: "Cars Auction", badge: "LIVE" },
-];
-
-const searchTabs = ["All", "Motors", "Classifieds"];
-
 // ─── Live Auctions Section ────────────────────────────────────────────────────
 
 function AuctionCountdown({ endTime }: { endTime: number }) {
+  const { t } = useTranslation();
   const { days, hours, minutes, seconds, isExpired } = useCountdown(endTime);
-  if (isExpired) return <span className="text-red-400 text-xs">Ended</span>;
+  if (isExpired) return <span className="text-red-400 text-xs">{t("landing.ended")}</span>;
   const urgent = days === 0 && hours === 0 && minutes < 30;
   const parts = days > 0 ? `${days}d ${hours}h ${minutes}m` : hours > 0 ? `${hours}h ${minutes}m ${seconds}s` : `${minutes}m ${seconds}s`;
   return <span className={`font-mono text-xs tabular-nums ${urgent ? "text-red-400 font-bold" : "text-white/70"}`}>{parts}</span>;
 }
 
 function LiveAuctionsSection({ onNavigate }: { onNavigate: (page: string, params?: Record<string, string>) => void }) {
+  const { t } = useTranslation();
   const { auctions } = useAuction();
   const liveAuctions = auctions.filter((a) => getStatus(a) === "live").slice(0, 4);
   if (liveAuctions.length === 0) return null;
@@ -67,19 +55,20 @@ function LiveAuctionsSection({ onNavigate }: { onNavigate: (page: string, params
           </div>
           <div>
             <h2 className="tracking-tight flex items-center gap-2">
-              Live Auctions
+              {t("landing.liveAuctions")}
               <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-600 text-white font-medium">
-                <span className="size-1.5 rounded-full bg-white animate-pulse" />{liveAuctions.length} Live
+                <span className="size-1.5 rounded-full bg-white animate-pulse" />
+                {t("landing.liveCount", { count: liveAuctions.length })}
               </span>
             </h2>
-            <p className="text-xs text-slate-500">Online bidding · Real-time updates</p>
+            <p className="text-xs text-slate-500">{t("landing.onlineBidding")}</p>
           </div>
         </div>
         <button
           onClick={() => onNavigate("auction")}
           className="flex items-center gap-1 text-sm text-blue-600 hover:underline"
         >
-          View all <ArrowRight className="size-3.5" />
+          {t("landing.viewAll")} <ArrowRight className="size-3.5" />
         </button>
       </div>
 
@@ -94,7 +83,7 @@ function LiveAuctionsSection({ onNavigate }: { onNavigate: (page: string, params
               <img src={a.images[0]} alt={a.title} className="size-full object-cover group-hover:scale-105 transition-transform duration-500" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
               <div className="absolute top-2 start-2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-bold uppercase">
-                <span className="size-1.5 rounded-full bg-white animate-pulse" />LIVE
+                <span className="size-1.5 rounded-full bg-white animate-pulse" />{t("auction.statusLive")}
               </div>
               {a.featured && (
                 <div className="absolute top-2 end-2 px-1.5 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-semibold">★</div>
@@ -107,8 +96,10 @@ function LiveAuctionsSection({ onNavigate }: { onNavigate: (page: string, params
             <div className="p-3">
               <p className="text-sm font-semibold truncate">{a.title}</p>
               <div className="flex items-center justify-between mt-1">
-                <span className="text-xs text-slate-500">{a.bids.length} bids · {a.watchers} watching</span>
-                <span className="text-xs text-blue-600 font-medium group-hover:underline">Bid Now</span>
+                <span className="text-xs text-slate-500">
+                  {t("landing.bidsWatching", { bids: a.bids.length, watchers: a.watchers })}
+                </span>
+                <span className="text-xs text-blue-600 font-medium group-hover:underline">{t("auction.bidNow")}</span>
               </div>
             </div>
           </button>
@@ -120,16 +111,55 @@ function LiveAuctionsSection({ onNavigate }: { onNavigate: (page: string, params
 
 export function Landing({ onNavigate, user, onLogout }: Props) {
   const { t } = useTranslation();
-  const { lang } = useApp();
   const { can, user: session, upgradePlan, renewPlan } = useAuth();
   const [showBanner, setShowBanner] = useState(true);
-  const [tab, setTab] = useState("All");
+  const [tab, setTab] = useState<"all" | "motors" | "classifieds">("all");
   const [motorsOpen, setMotorsOpen] = useState(false);
   const [classifiedsOpen, setClassifiedsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [showSubscription, setShowSubscription] = useState(false);
   const [subBusy, setSubBusy] = useState(false);
   const quota = session && session.role !== "admin" ? authApi.getAdQuotaSync(session.email) : null;
+
+  const navCats = [
+    { id: "motors", label: t("nav.motors"), badge: "" },
+    { id: "classifieds", label: t("nav.classifieds"), badge: "" },
+    { id: "auction", label: t("nav.auction"), badge: t("auction.statusLive") },
+  ];
+  const searchTabs: { id: "all" | "motors" | "classifieds"; label: string }[] = [
+    { id: "all", label: t("hero.tabAll") },
+    { id: "motors", label: t("nav.motors") },
+    { id: "classifieds", label: t("nav.classifieds") },
+  ];
+  const popular: { id: string; label: string; icon: typeof Car; category: string; items: string[] }[] = [
+    {
+      id: "motors",
+      label: t("nav.motors"),
+      icon: Car,
+      category: "motors",
+      items: [t("landing.usedCars"), t("landing.rentalCars"), t("landing.newCars"), t("landing.exportCars")],
+    },
+    {
+      id: "classifieds",
+      label: t("nav.classifieds"),
+      icon: Tag,
+      category: "classifieds",
+      items: [t("landing.electronics"), t("landing.computers"), t("landing.mobiles"), t("landing.cameras")],
+    },
+  ];
+  const profileMenu = [
+    { icon: User, label: t("nav.myProfile") },
+    { icon: Globe, label: t("nav.publicProfile") },
+    { icon: FileText, label: t("nav.myAds") },
+    { icon: BadgeCheck, label: t("nav.getVerified"), verified: true },
+    { icon: MessageCircle, label: t("nav.chats") },
+    { icon: Heart, label: t("nav.favorites") },
+    { icon: BookmarkCheck, label: t("nav.mySearches") },
+    { icon: Calendar, label: t("nav.appointments"), badge: "NEW" },
+    { icon: Wrench, label: t("nav.inspections"), badge: "NEW" },
+    { icon: Bookmark, label: t("nav.bookmarks") },
+    { icon: Settings, label: t("nav.accountSettings") },
+  ];
 
   const categoryAllowed = (id: string) => {
     if (!session || session.role === "admin") return true;
@@ -149,7 +179,7 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
   const recent = recentIds.map((id) => allListings.find((l) => l.id === id)).filter(Boolean) as typeof allListings;
 
   const search = () => {
-    const cat = tab.toLowerCase() === "all" ? "" : tab.toLowerCase().includes("motor") ? "motors" : tab.toLowerCase().includes("classified") ? "classifieds" : "";
+    const cat = tab === "all" ? "" : tab;
     onNavigate("browse", { q: query, location: city, category: cat });
   };
 
@@ -159,13 +189,13 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
         <div className="bg-white border-b border-slate-200 dark:bg-slate-950 dark:border-slate-800">
           <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-center gap-3 relative">
             <p className="text-sm text-center text-slate-700 dark:text-slate-300">
-              Join us in building a safer community. Get verified to boost your credibility and assist us in creating trust amongst our users!
+              {t("landing.verifyBanner")}
             </p>
             <button
-              onClick={() => toast.success("Verification started")}
+              onClick={() => toast.success(t("nav.getVerified"))}
               className="bg-[#3b6dd8] text-white px-3 py-1 rounded-md text-sm hover:bg-blue-700 whitespace-nowrap"
             >
-              Verify Now
+              {t("landing.verifyNow")}
             </button>
             <button
               onClick={() => setShowBanner(false)}
@@ -192,17 +222,17 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
           </button>
 
           <nav className="hidden lg:flex items-center gap-5 text-slate-600 dark:text-slate-300 ms-auto">
-            <button onClick={() => toast("No new notifications")} className="flex items-center gap-1 hover:text-slate-900 dark:hover:text-white">
-              <Bell className="size-4" /> Notifications
+            <button onClick={() => toast(t("nav.notifications"))} className="flex items-center gap-1 hover:text-slate-900 dark:hover:text-white">
+              <Bell className="size-4" /> {t("nav.notifications")}
             </button>
             <button onClick={() => onNavigate("browse")} className="flex items-center gap-1 hover:text-slate-900 dark:hover:text-white">
-              <BookmarkCheck className="size-4" /> My Searches
+              <BookmarkCheck className="size-4" /> {t("nav.mySearches")}
             </button>
             <button onClick={() => onNavigate("browse")} className="flex items-center gap-1 hover:text-slate-900 dark:hover:text-white">
-              <Heart className="size-4" /> Favorites
+              <Heart className="size-4" /> {t("nav.favorites")}
             </button>
-            <button onClick={() => toast("Opening chats…")} className="flex items-center gap-1 hover:text-slate-900 dark:hover:text-white">
-              <MessageCircle className="size-4" /> Chats
+            <button onClick={() => toast(t("nav.chats"))} className="flex items-center gap-1 hover:text-slate-900 dark:hover:text-white">
+              <MessageCircle className="size-4" /> {t("nav.chats")}
             </button>
             {user ? (
               <div
@@ -233,7 +263,7 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
                             className="w-full flex items-center gap-3 px-4 py-2.5 text-start bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:opacity-95 border-b border-slate-100 dark:border-slate-800"
                           >
                             <ShieldCheck className="size-4" />
-                            <span className="flex-1 truncate">Admin Panel</span>
+                            <span className="flex-1 truncate">{t("nav.adminPanel")}</span>
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/20">ADMIN</span>
                           </button>
                           <button
@@ -241,7 +271,7 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
                             className="w-full flex items-center gap-3 px-4 py-2.5 text-start hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800"
                           >
                             <Smartphone className="size-4 text-emerald-600" />
-                            <span className="flex-1 truncate text-sm">Android App Preview</span>
+                            <span className="flex-1 truncate text-sm">{t("nav.androidPreview")}</span>
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">APK</span>
                           </button>
                           <button
@@ -249,7 +279,7 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
                             className="w-full flex items-center gap-3 px-4 py-2.5 text-start hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800"
                           >
                             <Smartphone className="size-4 text-blue-500" />
-                            <span className="flex-1 truncate text-sm">iOS App Preview</span>
+                            <span className="flex-1 truncate text-sm">{t("nav.iosPreview")}</span>
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">IPA</span>
                           </button>
                         </>
@@ -260,7 +290,7 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
                           className="w-full flex items-center gap-3 px-4 py-2.5 text-start hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800"
                         >
                           <Zap className="size-4 text-amber-500" />
-                          <span className="flex-1 truncate text-sm">Subscription & Plans</span>
+                          <span className="flex-1 truncate text-sm">{t("nav.subscription")}</span>
                           {quota && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
                               {quota.planName}
@@ -268,19 +298,7 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
                           )}
                         </button>
                       )}
-                      {[
-                        { icon: User, label: "My Profile" },
-                        { icon: Globe, label: "My Public Profile" },
-                        { icon: FileText, label: "My Ads" },
-                        { icon: BadgeCheck, label: "Get Verified", verified: true },
-                        { icon: MessageCircle, label: "Chats" },
-                        { icon: Heart, label: "Favorites" },
-                        { icon: BookmarkCheck, label: "My Searches" },
-                        { icon: Calendar, label: "Car Appointments", badge: "NEW" },
-                        { icon: Wrench, label: "Car Inspections", badge: "NEW" },
-                        { icon: Bookmark, label: "My Bookmarks" },
-                        { icon: Settings, label: "Account Settings" },
-                      ].map((it) => (
+                      {profileMenu.map((it) => (
                         <button
                           key={it.label}
                           onClick={() => { setProfileOpen(false); toast(it.label); }}
@@ -288,16 +306,16 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
                         >
                           <it.icon className="size-4 text-slate-500" />
                           <span className="flex-1 truncate">{it.label}</span>
-                          {it.verified && <BadgeCheck className="size-4 text-blue-600 fill-blue-600 text-white" />}
-                          {it.badge && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-600 text-white">{it.badge}</span>}
+                          {"verified" in it && it.verified && <BadgeCheck className="size-4 text-blue-600 fill-blue-600 text-white" />}
+                          {"badge" in it && it.badge && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-600 text-white">{it.badge}</span>}
                         </button>
                       ))}
                       <button
-                        onClick={() => { setProfileOpen(false); onLogout(); toast.success("Signed out"); }}
+                        onClick={() => { setProfileOpen(false); onLogout(); toast.success(t("nav.signOut")); }}
                         className="w-full flex items-center gap-3 px-4 py-2.5 text-start hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
                       >
                         <LogOut className="size-4 text-slate-500" />
-                        <span>Sign out</span>
+                        <span>{t("nav.signOut")}</span>
                       </button>
                     </div>
                   </div>
@@ -305,7 +323,7 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
               </div>
             ) : (
               <button onClick={() => onNavigate("auth")} className="flex items-center gap-1 hover:text-slate-900 dark:hover:text-white">
-                <UserCog className="size-4" /> Login
+                <UserCog className="size-4" /> {t("nav.login")}
               </button>
             )}
           </nav>
@@ -317,12 +335,12 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
                 onClick={() => onNavigate("post")}
                 className="px-3 py-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-950/30 whitespace-nowrap text-sm font-medium inline-flex items-center gap-1.5"
               >
-                <Gavel className="size-3.5" /> Post car auction
+                <Gavel className="size-3.5" /> {t("nav.postAuction")}
               </button>
             )}
             {(!session || can("canPostAds")) && (
               <button onClick={() => onNavigate("post")} className="px-4 py-2 rounded-lg bg-[#2563eb] text-white hover:bg-[#1d4ed8] whitespace-nowrap">
-                <Editable id="landing.placeAdBtn" page="Landing" label="Place Your Ad Button" defaultValue="Place Your Ad" />
+                <Editable id="landing.placeAdBtn" page="Landing" label="Place Your Ad Button" defaultValue={t("nav.placeAd")} />
               </button>
             )}
           </div>
@@ -388,20 +406,20 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
                 page="Landing"
                 label="Hero Title"
                 multiline
-                defaultValue={`The best place to buy & sell cars and classifieds in ${city}`}
+                defaultValue={t("hero.heroTitle", { city })}
               />
             </h1>
 
             <div className="mt-8 max-w-5xl mx-auto bg-white dark:bg-slate-900 rounded-xl shadow-xl p-3 sm:p-4">
               <div className="flex items-center gap-2 mb-3 overflow-x-auto">
-                <span className="text-slate-500 whitespace-nowrap pe-2">Searching In</span>
+                <span className="text-slate-500 whitespace-nowrap pe-2">{t("hero.searchingIn")}</span>
                 {searchTabs.map((s) => (
                   <button
-                    key={s}
-                    onClick={() => setTab(s)}
-                    className={`px-3 py-1.5 rounded-full whitespace-nowrap transition ${tab === s ? "bg-[#2563eb] text-white" : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"}`}
+                    key={s.id}
+                    onClick={() => setTab(s.id)}
+                    className={`px-3 py-1.5 rounded-full whitespace-nowrap transition ${tab === s.id ? "bg-[#2563eb] text-white" : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"}`}
                   >
-                    {s}
+                    {s.label}
                   </button>
                 ))}
               </div>
@@ -410,11 +428,11 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search for anything"
+                  placeholder={t("hero.searchPh")}
                   className="flex-1 outline-none py-2 bg-transparent"
                 />
                 <button type="submit" className="px-6 py-2.5 rounded-md bg-[#2563eb] text-white hover:bg-[#1d4ed8]">
-                  <Editable id="landing.searchBtn" page="Landing" label="Search Button" defaultValue="Search" />
+                  <Editable id="landing.searchBtn" page="Landing" label="Search Button" defaultValue={t("hero.search")} />
                 </button>
               </form>
             </div>
@@ -426,7 +444,7 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
       <LiveAuctionsSection onNavigate={onNavigate} />
 
       <section className="max-w-7xl mx-auto px-4 mt-8 mb-12">
-        <h2 className="tracking-tight mb-6">Popular Categories</h2>
+        <h2 className="tracking-tight mb-6">{t("landing.popularCategories")}</h2>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-8">
           {popular.map((p) => (
             <div key={p.id}>
@@ -444,7 +462,7 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
                       onClick={() => onNavigate("browse", { category: p.category, q: it })}
                       className="text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-start flex items-center gap-1"
                     >
-                      {it === "Rental Cars" ? (
+                      {it === t("landing.rentalCars") ? (
                         <span className="inline-flex items-center gap-1">
                           {it}
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-600 text-white">NEW</span>
@@ -458,7 +476,7 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
                     onClick={() => onNavigate("browse", { category: p.category })}
                     className="flex items-center gap-1 text-blue-600 hover:underline text-start"
                   >
-                    <span>All in {p.label}</span>
+                    <span>{t("landing.allIn", { label: p.label })}</span>
                     <ArrowRight className="size-3.5 shrink-0" />
                   </button>
                 </li>
@@ -470,7 +488,7 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
 
       {recent.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 mt-10">
-          <p className="tracking-tight mb-4">Recently viewed</p>
+          <p className="tracking-tight mb-4">{t("landing.recentlyViewed")}</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
             {recent.slice(0, 6).map((l) => (
               <button
@@ -498,7 +516,7 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
         <div className="max-w-7xl mx-auto px-4 py-10">
           <p className="tracking-tight mb-4">
             <Editable id="landing.popularSearchesTitle" page="Landing" label="Popular Searches Title"
-              defaultValue="Popular searches" />
+              defaultValue={t("landing.popularSearches")} />
           </p>
           <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-x-8 gap-y-2 text-sm text-slate-600 dark:text-slate-300">
             {[
@@ -522,11 +540,11 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
           <div className="flex-1">
             <p className="tracking-tight">
               <Editable id="landing.appPromoTitle" page="Landing" label="App Promo Title"
-                defaultValue="Find amazing deals on the go." />
+                defaultValue={t("landing.appPromoTitle")} />
             </p>
             <p className="text-[#2563eb]">
               <Editable id="landing.appPromoSub" page="Landing" label="App Promo Subtitle"
-                defaultValue="Download the app now!" />
+                defaultValue={t("landing.appPromoSub")} />
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -555,12 +573,12 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
         <div className="bg-slate-50 dark:bg-slate-900">
           <div className="max-w-7xl mx-auto px-4 py-10 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6 text-slate-600 dark:text-slate-300">
             {[
-              { title: "Company", items: ["About Us", "Advertising", "Careers", "Legal Hub", "Sitemap"] },
+              { title: t("landing.company"), items: [t("landing.aboutUs"), t("landing.advertising"), t("landing.careers"), t("landing.legalHub"), t("landing.sitemap")] },
               { title: "UAE", items: ["Dubai", "Abu Dhabi", "Ras Al Khaimah", "Sharjah", "Fujairah", "Ajman", "Umm Al Quwain", "Al Ain"] },
-              { title: "Other Countries", items: ["Egypt", "Bahrain", "Saudi Arabia", "Kuwait", "Oman", "Qatar"] },
-              { title: "Get Social", items: ["Facebook", "X", "Youtube", "Instagram"] },
-              { title: "Support", items: ["Help", "Contact Us", "Call Us"] },
-              { title: "Languages", items: ["English", "العربية"] },
+              { title: t("landing.otherCountries"), items: ["Egypt", "Bahrain", "Saudi Arabia", "Kuwait", "Oman", "Qatar"] },
+              { title: t("landing.getSocial"), items: ["Facebook", "X", "Youtube", "Instagram"] },
+              { title: t("landing.support"), items: [t("landing.help"), t("landing.contactUs"), t("landing.callUs")] },
+              { title: t("landing.languages"), items: ["English", "العربية"] },
             ].map((col) => (
               <div key={col.title}>
                 <p className="text-slate-900 dark:text-slate-100 mb-3">{col.title}</p>

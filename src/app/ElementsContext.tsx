@@ -143,8 +143,8 @@ type Ctx = {
   setEditMode: (on: boolean) => void;
   setAdmin: (on: boolean) => void;
   register: (meta: ElementMeta) => void;
-  get: (id: string, fallback: string) => string;
-  set: (id: string, value: string) => void;
+  get: (id: string, fallback: string, lang?: "en" | "ar") => string;
+  set: (id: string, value: string, lang?: "en" | "ar") => void;
   reset: (id?: string) => void;
   findReplace: (find: string, replace: string, caseSensitive?: boolean) => number;
   addBanner: (b?: Partial<Banner>) => void;
@@ -233,11 +233,25 @@ export function ElementsProvider({ children }: { children: ReactNode }) {
     fontFamilies: FONT_FAMILIES, presets: PRESETS,
     setEditMode, setAdmin,
     register: (meta) => setRegistry((r) => (r[meta.id] ? r : { ...r, [meta.id]: meta })),
-    get: (id, fallback) => (values[id] !== undefined ? values[id] : fallback),
-    set: (id, value) => {
-      const before = values[id];
-      setValues((v) => ({ ...v, [id]: value }));
-      log("text", `Edited "${registry[id]?.label || id}"`, { id, value: before }, { id, value });
+    get: (id, fallback, lang) => {
+      const l = lang || (document.documentElement.lang?.startsWith("ar") ? "ar" : "en");
+      const localized = values[`${id}::${l}`];
+      if (localized !== undefined) return localized;
+      // Legacy single-language CMS values apply to English only so Arabic can use i18n defaults.
+      if (l === "en" && values[id] !== undefined) return values[id];
+      return fallback;
+    },
+    set: (id, value, lang) => {
+      const l = lang || (document.documentElement.lang?.startsWith("ar") ? "ar" : "en");
+      const key = `${id}::${l}`;
+      const before = values[key] ?? values[id];
+      setValues((v) => {
+        const next = { ...v, [key]: value };
+        // Keep legacy key in sync for English edits (admin tools / older readers).
+        if (l === "en") next[id] = value;
+        return next;
+      });
+      log("text", `Edited "${registry[id]?.label || id}" (${l})`, { id, value: before }, { id, value, lang: l });
     },
     reset: (id) => {
       if (!id) {
@@ -247,7 +261,13 @@ export function ElementsProvider({ children }: { children: ReactNode }) {
         return;
       }
       const before = values[id];
-      setValues((v) => { const n = { ...v }; delete n[id]; return n; });
+      setValues((v) => {
+        const n = { ...v };
+        delete n[id];
+        delete n[`${id}::en`];
+        delete n[`${id}::ar`];
+        return n;
+      });
       log("text", `Reset "${registry[id]?.label || id}"`, { id, value: before }, { id, value: undefined });
     },
     findReplace: (find, replace, caseSensitive) => {

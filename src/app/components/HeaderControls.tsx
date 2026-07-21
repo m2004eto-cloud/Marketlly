@@ -1,13 +1,24 @@
 import { Sun, Moon } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useApp } from "../AppContext";
 
 export function HeaderControls() {
   const { theme, toggleTheme, lang, setLang } = useApp();
+  const { i18n } = useTranslation();
+
+  const switchLang = (next: "en" | "ar") => {
+    setLang(next);
+    void i18n.changeLanguage(next);
+    document.documentElement.lang = next;
+    document.documentElement.dir = next === "ar" ? "rtl" : "ltr";
+  };
+
   return (
     <div className="flex items-center gap-1">
       <div className="flex items-center rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
         <button
-          onClick={() => setLang("en")}
+          type="button"
+          onClick={() => switchLang("en")}
           aria-label="English"
           title="English"
           className={`flex items-center gap-1 px-2 py-1.5 ${lang === "en" ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900" : "text-slate-600 dark:text-slate-300"}`}
@@ -15,7 +26,8 @@ export function HeaderControls() {
           <span className="text-xs">EN</span>
         </button>
         <button
-          onClick={() => setLang("ar")}
+          type="button"
+          onClick={() => switchLang("ar")}
           aria-label="العربية"
           title="العربية"
           className={`flex items-center gap-1 px-2 py-1.5 ${lang === "ar" ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900" : "text-slate-600 dark:text-slate-300"}`}

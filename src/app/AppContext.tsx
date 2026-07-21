@@ -12,12 +12,23 @@ type Ctx = {
   toggleFavorite: (id: number) => void;
 };
 
+const LANG_KEY = "marketly_lang";
+
+function readStoredLang(): Lang {
+  try {
+    const saved = localStorage.getItem(LANG_KEY) || localStorage.getItem("i18nextLng");
+    return saved?.toLowerCase().startsWith("ar") ? "ar" : "en";
+  } catch {
+    return "en";
+  }
+}
+
 const AppCtx = createContext<Ctx | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const { i18n } = useTranslation();
   const [theme, setTheme] = useState<Theme>("light");
-  const [lang, setLangState] = useState<Lang>((i18n.language?.startsWith("ar") ? "ar" : "en"));
+  const [lang, setLangState] = useState<Lang>(() => readStoredLang());
   const [favorites, setFavorites] = useState<number[]>([]);
 
   useEffect(() => {
@@ -27,12 +38,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [theme]);
 
   useEffect(() => {
-    document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
-    document.documentElement.lang = lang;
-    i18n.changeLanguage(lang);
+    const root = document.documentElement;
+    root.dir = lang === "ar" ? "rtl" : "ltr";
+    root.lang = lang;
+    try {
+      localStorage.setItem(LANG_KEY, lang);
+      localStorage.setItem("i18nextLng", lang);
+    } catch { /* ignore */ }
+    void i18n.changeLanguage(lang);
+    // Prefer Cairo for Arabic even if CMS typography set a Latin family on :root
+    if (lang === "ar") {
+      root.style.fontFamily = '"Cairo", "Segoe UI", system-ui, sans-serif';
+    } else {
+      root.style.removeProperty("font-family");
+    }
   }, [lang, i18n]);
 
-  const setLang = (l: Lang) => setLangState(l);
+  const setLang = (l: Lang) => {
+    setLangState(l);
+    void i18n.changeLanguage(l);
+  };
   const toggleTheme = () => setTheme((t) => (t === "light" ? "dark" : "light"));
   const toggleFavorite = (id: number) =>
     setFavorites((f) => (f.includes(id) ? f.filter((x) => x !== id) : [...f, id]));

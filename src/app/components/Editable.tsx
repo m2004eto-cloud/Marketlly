@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Pencil, Check, X } from "lucide-react";
 import { useElements, ElementMeta } from "../ElementsContext";
+import { useApp } from "../AppContext";
 
 type Props = {
   id: string;
@@ -16,6 +17,7 @@ export function Editable({
   id, page, label, defaultValue, multiline, className, as = "span",
 }: Props) {
   const { register, get, set, editMode, isAdmin } = useElements();
+  const { lang } = useApp();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const ref = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
@@ -25,11 +27,12 @@ export function Editable({
     register(meta);
   }, [id, page, label, defaultValue, multiline, register]);
 
-  const value = get(id, defaultValue);
+  // Locale-aware CMS lookup; falls back to live i18n defaultValue for Arabic when unset.
+  const value = get(id, defaultValue, lang);
   const showOverlay = isAdmin && editMode;
 
   const start = () => { setDraft(value); setEditing(true); };
-  const save = () => { set(id, draft); setEditing(false); };
+  const save = () => { set(id, draft, lang); setEditing(false); };
   const cancel = () => setEditing(false);
 
   if (editing) {
@@ -38,7 +41,7 @@ export function Editable({
         {multiline ? (
           <textarea
             autoFocus
-            ref={(r) => (ref.current = r)}
+            ref={(r) => { ref.current = r; }}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             rows={3}
@@ -47,7 +50,7 @@ export function Editable({
         ) : (
           <input
             autoFocus
-            ref={(r) => (ref.current = r)}
+            ref={(r) => { ref.current = r; }}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") cancel(); }}
