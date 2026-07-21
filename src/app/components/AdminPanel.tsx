@@ -44,12 +44,38 @@ type AdminListing = Listing & { seller: string; sellerRole: "customer" | "dealer
 type UserPermissions = FrontendPermissions;
 
 type AdminUser = {
-  id: number; name: string; email: string; phone: string;
+  id: string; name: string; email: string; phone: string;
   role: "customer" | "dealer" | "admin";
   verified: boolean; banned: boolean; kycStatus: "none" | "pending" | "verified";
   ads: number; joined: string; lastActive: string; location: string; notes: string;
   permissions: UserPermissions;
 };
+
+type AdminProfileMeta = {
+  phone?: string;
+  location?: string;
+  notes?: string;
+  kycStatus?: AdminUser["kycStatus"];
+  ads?: number;
+  lastActive?: string;
+};
+
+const ADMIN_META_KEY = "marketly_admin_user_meta_v1";
+
+function loadAdminMeta(): Record<string, AdminProfileMeta> {
+  try {
+    const raw = localStorage.getItem(ADMIN_META_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, AdminProfileMeta>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveAdminMeta(meta: Record<string, AdminProfileMeta>) {
+  try {
+    localStorage.setItem(ADMIN_META_KEY, JSON.stringify(meta));
+  } catch { /* ignore */ }
+}
 
 type Report = {
   id: number; listingId: number; reason: string;
@@ -73,15 +99,57 @@ const BANNED_PERMS: UserPermissions = { ...BANNED_PERMISSIONS };
 // ─── Seed Data ────────────────────────────────────────────────────────────────
 
 const seedUsers: AdminUser[] = [
-  { id: 1, name: "Ahmed Al Mansoori", email: "ahmed@example.ae", phone: "+971 50 123 4567", role: "dealer", verified: true, banned: false, kycStatus: "verified", ads: 24, joined: "2025-08-12", lastActive: "2026-07-15", location: "Dubai", notes: "Premium Motors partner. Top seller Q1-Q2 2026.", permissions: DEFAULT_DEALER_PERMS },
-  { id: 2, name: "Sara Khan", email: "sara.k@example.com", phone: "+971 55 987 6543", role: "customer", verified: false, banned: false, kycStatus: "pending", ads: 3, joined: "2026-01-04", lastActive: "2026-07-10", location: "Abu Dhabi", notes: "", permissions: DEFAULT_CUSTOMER_PERMS },
-  { id: 3, name: "Premium Motors LLC", email: "sales@premiummotors.ae", phone: "+971 4 321 0987", role: "dealer", verified: true, banned: false, kycStatus: "verified", ads: 87, joined: "2024-11-20", lastActive: "2026-07-16", location: "Dubai", notes: "Enterprise account. Dedicated account manager: Rania.", permissions: { ...DEFAULT_DEALER_PERMS, maxAdsPerMonth: 500 } },
-  { id: 4, name: "Omar Hassan", email: "omar@example.ae", phone: "+971 52 456 7890", role: "customer", verified: false, banned: true, kycStatus: "none", ads: 1, joined: "2026-02-18", lastActive: "2026-04-01", location: "Sharjah", notes: "Banned: fraudulent listings. Case #2026-0318.", permissions: BANNED_PERMS },
-  { id: 5, name: "Layla Ibrahim", email: "layla@example.ae", phone: "+971 54 654 3210", role: "customer", verified: true, banned: false, kycStatus: "verified", ads: 6, joined: "2025-12-01", lastActive: "2026-07-14", location: "Dubai", notes: "", permissions: DEFAULT_CUSTOMER_PERMS },
-  { id: 6, name: "Gulf Auto Trade", email: "ops@gulfauto.ae", phone: "+971 4 111 2233", role: "dealer", verified: false, banned: false, kycStatus: "pending", ads: 12, joined: "2026-03-22", lastActive: "2026-07-12", location: "Ajman", notes: "KYC docs submitted 2026-07-01. Awaiting legal review.", permissions: DEFAULT_DEALER_PERMS },
-  { id: 7, name: "Fatima Al Zaabi", email: "fatima.z@example.ae", phone: "+971 56 789 0123", role: "customer", verified: true, banned: false, kycStatus: "verified", ads: 2, joined: "2026-05-14", lastActive: "2026-07-16", location: "Abu Dhabi", notes: "", permissions: DEFAULT_CUSTOMER_PERMS },
-  { id: 8, name: "Tech Gadgets Store", email: "sales@techgadgets.ae", phone: "+971 4 555 7777", role: "dealer", verified: true, banned: false, kycStatus: "verified", ads: 44, joined: "2025-06-30", lastActive: "2026-07-15", location: "Dubai", notes: "Electronics specialist. Featured dealer.", permissions: { ...DEFAULT_DEALER_PERMS, maxAdsPerMonth: 200 } },
+  { id: "seed-1", name: "Ahmed Al Mansoori", email: "ahmed@example.ae", phone: "+971 50 123 4567", role: "dealer", verified: true, banned: false, kycStatus: "verified", ads: 24, joined: "2025-08-12", lastActive: "2026-07-15", location: "Dubai", notes: "Premium Motors partner. Top seller Q1-Q2 2026.", permissions: DEFAULT_DEALER_PERMS },
+  { id: "seed-2", name: "Sara Khan", email: "sara.k@example.com", phone: "+971 55 987 6543", role: "customer", verified: false, banned: false, kycStatus: "pending", ads: 3, joined: "2026-01-04", lastActive: "2026-07-10", location: "Abu Dhabi", notes: "", permissions: DEFAULT_CUSTOMER_PERMS },
+  { id: "seed-3", name: "Premium Motors LLC", email: "sales@premiummotors.ae", phone: "+971 4 321 0987", role: "dealer", verified: true, banned: false, kycStatus: "verified", ads: 87, joined: "2024-11-20", lastActive: "2026-07-16", location: "Dubai", notes: "Enterprise account. Dedicated account manager: Rania.", permissions: { ...DEFAULT_DEALER_PERMS, maxAdsPerMonth: 500 } },
+  { id: "seed-4", name: "Omar Hassan", email: "omar@example.ae", phone: "+971 52 456 7890", role: "customer", verified: false, banned: true, kycStatus: "none", ads: 1, joined: "2026-02-18", lastActive: "2026-04-01", location: "Sharjah", notes: "Banned: fraudulent listings. Case #2026-0318.", permissions: BANNED_PERMS },
+  { id: "seed-5", name: "Layla Ibrahim", email: "layla@example.ae", phone: "+971 54 654 3210", role: "customer", verified: true, banned: false, kycStatus: "verified", ads: 6, joined: "2025-12-01", lastActive: "2026-07-14", location: "Dubai", notes: "", permissions: DEFAULT_CUSTOMER_PERMS },
+  { id: "seed-6", name: "Gulf Auto Trade", email: "ops@gulfauto.ae", phone: "+971 4 111 2233", role: "dealer", verified: false, banned: false, kycStatus: "pending", ads: 12, joined: "2026-03-22", lastActive: "2026-07-12", location: "Ajman", notes: "KYC docs submitted 2026-07-01. Awaiting legal review.", permissions: DEFAULT_DEALER_PERMS },
+  { id: "seed-7", name: "Fatima Al Zaabi", email: "fatima.z@example.ae", phone: "+971 56 789 0123", role: "customer", verified: true, banned: false, kycStatus: "verified", ads: 2, joined: "2026-05-14", lastActive: "2026-07-16", location: "Abu Dhabi", notes: "", permissions: DEFAULT_CUSTOMER_PERMS },
+  { id: "seed-8", name: "Tech Gadgets Store", email: "sales@techgadgets.ae", phone: "+971 4 555 7777", role: "dealer", verified: true, banned: false, kycStatus: "verified", ads: 44, joined: "2025-06-30", lastActive: "2026-07-15", location: "Dubai", notes: "Electronics specialist. Featured dealer.", permissions: { ...DEFAULT_DEALER_PERMS, maxAdsPerMonth: 200 } },
 ];
+
+function accountToAdminUser(
+  account: ReturnType<typeof authApi.listAccountsSync>[number],
+  seed?: AdminUser,
+  meta?: AdminProfileMeta,
+): AdminUser {
+  const roleDefaults =
+    account.role === "dealer"
+      ? DEFAULT_DEALER_PERMS
+      : account.role === "admin"
+        ? { ...DEFAULT_DEALER_PERMS, maxAdsPerMonth: 9999 }
+        : DEFAULT_CUSTOMER_PERMS;
+  return {
+    id: account.id,
+    name: account.name,
+    email: account.email,
+    phone: meta?.phone || seed?.phone || (account.tradeLicense ? `TL: ${account.tradeLicense}` : "—"),
+    role: account.role,
+    verified: account.verified,
+    banned: account.banned,
+    kycStatus: meta?.kycStatus || seed?.kycStatus || (account.verified ? "verified" : account.role === "dealer" ? "pending" : "none"),
+    ads: meta?.ads ?? seed?.ads ?? 0,
+    joined: account.createdAt || seed?.joined || new Date().toISOString().slice(0, 10),
+    lastActive: meta?.lastActive || seed?.lastActive || new Date().toISOString().slice(0, 10),
+    location: meta?.location || seed?.location || "UAE",
+    notes: meta?.notes || seed?.notes || (account.tradeLicense ? `Trade License: ${account.tradeLicense}` : ""),
+    permissions: { ...roleDefaults, ...account.permissions },
+  };
+}
+
+/** Merge real auth signups with demo seed profiles so Admin Dealers/Users stay in sync. */
+function loadAdminUsers(): AdminUser[] {
+  const accounts = authApi.listAccountsSync();
+  const meta = loadAdminMeta();
+  const seedByEmail = Object.fromEntries(seedUsers.map((u) => [u.email.toLowerCase(), u]));
+  const fromAuth = accounts.map((a) =>
+    accountToAdminUser(a, seedByEmail[a.email.toLowerCase()], meta[a.email.toLowerCase()]),
+  );
+  const authEmails = new Set(fromAuth.map((u) => u.email.toLowerCase()));
+  const seedOnly = seedUsers.filter((s) => !authEmails.has(s.email.toLowerCase()));
+  return [...fromAuth, ...seedOnly];
+}
 
 const seedReports: Report[] = [
   { id: 1, listingId: 9, reason: "Suspicious pricing", reporter: "Sara Khan", date: "2026-04-28", status: "open" },
@@ -128,7 +196,11 @@ export function AdminPanel({ onBack, admin, onViewAuction }: Props) {
     const refresh = () => setListings(toAdmin(listingsApi.getAllListingsSync()));
     return listingsApi.subscribeListings(refresh);
   }, []);
-  const [users, setUsers] = useState<AdminUser[]>(seedUsers);
+  const [users, setUsers] = useState<AdminUser[]>(() => loadAdminUsers());
+  useEffect(() => {
+    const refresh = () => setUsers(loadAdminUsers());
+    return authApi.subscribeAuth(refresh);
+  }, []);
   const [reports, setReports] = useState<Report[]>(seedReports);
   const [listingScope, setListingScope] = useState<"all" | "customer" | "dealer">("all");
   const [q, setQ] = useState("");
@@ -206,16 +278,27 @@ export function AdminPanel({ onBack, admin, onViewAuction }: Props) {
       toast.success("Listing deleted");
     } else toast.error(res.error);
   };
-  const toggleVerify = (id: number) => {
+  const toggleVerify = (id: string) => {
     setUsers((us) => {
       const next = us.map((u) => (u.id === id ? { ...u, verified: !u.verified } : u));
       const target = next.find((u) => u.id === id);
-      if (target) void authApi.updateAccountFlags(target.email, { verified: target.verified });
+      if (target) {
+        void authApi.updateAccountFlags(target.email, { verified: target.verified });
+        const meta = loadAdminMeta();
+        const key = target.email.toLowerCase();
+        meta[key] = {
+          ...meta[key],
+          kycStatus: target.verified ? "verified" : target.role === "dealer" ? "pending" : "none",
+        };
+        saveAdminMeta(meta);
+      }
       return next;
     });
+    // Refresh from auth store so UI stays in sync
+    setTimeout(() => setUsers(loadAdminUsers()), 50);
     toast.success("Verification updated");
   };
-  const toggleBan = (id: number) => {
+  const toggleBan = (id: string) => {
     setUsers((us) => {
       const next = us.map((u) => {
         if (u.id !== id) return u;
@@ -233,16 +316,27 @@ export function AdminPanel({ onBack, admin, onViewAuction }: Props) {
       }
       return next;
     });
+    setTimeout(() => setUsers(loadAdminUsers()), 50);
     toast.success("User status updated");
   };
   const updateUser = (updated: AdminUser) => {
-    setUsers((us) => us.map((u) => (u.id === updated.id ? updated : u)));
+    const meta = loadAdminMeta();
+    meta[updated.email.toLowerCase()] = {
+      phone: updated.phone,
+      location: updated.location,
+      notes: updated.notes,
+      kycStatus: updated.kycStatus,
+      ads: updated.ads,
+      lastActive: updated.lastActive,
+    };
+    saveAdminMeta(meta);
     void authApi.updateAccountPermissions(updated.email, updated.permissions);
     void authApi.updateAccountFlags(updated.email, {
       banned: updated.banned,
       verified: updated.verified,
       name: updated.name,
     });
+    setTimeout(() => setUsers(loadAdminUsers()), 50);
     toast.success("User updated — frontend permissions synced");
   };
   const resolveReport = (id: number) => { setReports((rs) => rs.map((r) => (r.id === id ? { ...r, status: "resolved" } : r))); toast.success("Report resolved"); };
@@ -464,8 +558,8 @@ export function AdminPanel({ onBack, admin, onViewAuction }: Props) {
 function UsersSection({ users, allUsers, scopeLabel, variant = "user", onUpdateUser, onToggleVerify, onToggleBan, listings }: {
   users: AdminUser[]; allUsers?: AdminUser[]; scopeLabel: string;
   variant?: "user" | "dealer";
-  onUpdateUser: (u: AdminUser) => void; onToggleVerify: (id: number) => void;
-  onToggleBan: (id: number) => void; listings: AdminListing[];
+  onUpdateUser: (u: AdminUser) => void; onToggleVerify: (id: string) => void;
+  onToggleBan: (id: string) => void; listings: AdminListing[];
 }) {
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
