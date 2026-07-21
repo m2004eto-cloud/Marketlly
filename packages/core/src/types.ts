@@ -1,3 +1,5 @@
+import type { UserSubscription } from "./plans";
+
 export type UserRole = "customer" | "dealer" | "admin";
 
 /** Frontend capability flags controlled by admin (customers & dealers). */
@@ -31,6 +33,7 @@ export type SessionUser = {
   banned: boolean;
   verified: boolean;
   permissions: FrontendPermissions;
+  subscription?: UserSubscription;
 };
 
 export type KycStatus = "none" | "pending" | "verified";
@@ -52,6 +55,7 @@ export type AuthAccount = {
   kycStatus?: KycStatus;
   ads?: number;
   lastActive?: string;
+  subscription?: UserSubscription;
   permissions: FrontendPermissions;
   createdAt: string;
 };

@@ -5,8 +5,10 @@ import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { defaultPlanForRole, type BillingCycle, type PlanId } from "@marketly/core";
 import { HeaderControls } from "./HeaderControls";
 import { Editable } from "./Editable";
+import { PlanPicker } from "./SubscriptionPlans";
 
 type SignupRole = "customer" | "dealer";
 type Props = {
@@ -17,6 +19,8 @@ type Props = {
     password: string;
     name: string;
     role: SignupRole;
+    planId: PlanId;
+    billingCycle?: BillingCycle;
     tradeLicense?: string;
     vatTrn?: string;
   }) => Promise<{ ok: boolean; error?: string; role?: string }>;
@@ -53,6 +57,8 @@ export function Auth({ onBack, onSignIn, onSignUp }: Props) {
   const { t } = useTranslation();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [role, setRole] = useState<SignupRole>("customer");
+  const [planId, setPlanId] = useState<PlanId>(defaultPlanForRole("customer"));
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
 
   const {
     register,
@@ -76,11 +82,18 @@ export function Auth({ onBack, onSignIn, onSignUp }: Props) {
       return;
     }
 
+    if (!planId) {
+      toast.error("Please select a subscription plan");
+      return;
+    }
+
     const res = await onSignUp({
       email: data.email,
       password: data.password,
       name: (data.name || "").trim(),
       role,
+      planId,
+      billingCycle,
       tradeLicense: data.tradeLicense,
       vatTrn: data.vatTrn,
     });
@@ -94,7 +107,14 @@ export function Auth({ onBack, onSignIn, onSignUp }: Props) {
   const switchMode = (m: "signin" | "signup") => {
     setMode(m);
     setRole("customer");
+    setPlanId(defaultPlanForRole("customer"));
+    setBillingCycle("monthly");
     reset();
+  };
+
+  const selectRole = (r: SignupRole) => {
+    setRole(r);
+    setPlanId(defaultPlanForRole(r));
   };
 
   const signupRoles: { id: SignupRole; icon: typeof User }[] = [
@@ -164,7 +184,7 @@ export function Auth({ onBack, onSignIn, onSignUp }: Props) {
                 <button
                   key={r.id}
                   type="button"
-                  onClick={() => setRole(r.id)}
+                  onClick={() => selectRole(r.id)}
                   className={`p-3 rounded-xl border text-start transition ${role === r.id ? "border-blue-600 bg-blue-50 dark:bg-blue-950/30" : "border-slate-200 dark:border-slate-700"}`}
                 >
                   <r.icon className={`size-5 mb-2 ${role === r.id ? "text-blue-600" : "text-slate-500"}`} />
@@ -172,6 +192,19 @@ export function Auth({ onBack, onSignIn, onSignUp }: Props) {
                   <p className="text-slate-500 text-xs mt-0.5">{t(`auth.${r.id}D`)}</p>
                 </button>
               ))}
+            </div>
+          )}
+
+          {mode === "signup" && (
+            <div className="mb-5 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+              <PlanPicker
+                role={role}
+                selectedPlanId={planId}
+                billingCycle={billingCycle}
+                onSelectPlan={setPlanId}
+                onCycleChange={setBillingCycle}
+                title="Select your subscription plan"
+              />
             </div>
           )}
 

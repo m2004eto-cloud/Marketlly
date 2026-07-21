@@ -1,4 +1,5 @@
 export * from "./types";
+export * from "./plans";
 export * from "./storage";
 export * from "./mocks/seed";
 export * from "./api/client";

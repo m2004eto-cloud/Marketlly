@@ -1,6 +1,18 @@
 import { fail, ok, withLatency, type ApiResult } from "./client";
 import { readJson, writeJson } from "../storage";
 import {
+  buildSubscription,
+  defaultPlanForRole,
+  getPlan,
+  isPaidPlan,
+  planRank,
+  refreshSubscriptionStatus,
+  renewSubscriptionPeriod,
+  type BillingCycle,
+  type PlanId,
+  type UserSubscription,
+} from "../plans";
+import {
   BANNED_PERMISSIONS,
   DEFAULT_ADMIN_PERMISSIONS,
   DEFAULT_CUSTOMER_PERMISSIONS,
@@ -33,6 +45,8 @@ export type AdminCreateAccountInput = {
   tradeLicense?: string;
   location?: string;
   vatTrn?: string;
+  planId?: PlanId;
+  billingCycle?: BillingCycle;
 };
 
 export type AccountProfileUpdate = {
@@ -79,9 +93,28 @@ function requireAdmin(): ApiResult<true> {
   return ok(true);
 }
 
+function withPlan(
+  account: Omit<AuthAccount, "subscription" | "permissions"> & {
+    permissions?: FrontendPermissions;
+    planId: PlanId;
+    billingCycle?: BillingCycle;
+    periodStart?: string;
+  },
+): AuthAccount {
+  const plan = getPlan(account.planId);
+  const cycle = account.billingCycle || "monthly";
+  const start = account.periodStart || account.createdAt;
+  const basePerms = account.permissions || permissionsForRole(account.role);
+  return {
+    ...account,
+    permissions: { ...basePerms, maxAdsPerMonth: plan.maxAds },
+    subscription: buildSubscription(account.planId, cycle, start, 0),
+  };
+}
+
 function defaultAccounts(): AuthAccount[] {
   return [
-    {
+    withPlan({
       id: "admin-1",
       name: "Marketly Admin",
       email: "admin@marketly.ae",
@@ -97,8 +130,10 @@ function defaultAccounts(): AuthAccount[] {
       notes: "Platform administrator",
       permissions: { ...DEFAULT_ADMIN_PERMISSIONS },
       createdAt: "2025-01-01",
-    },
-    {
+      planId: "enterprise",
+      billingCycle: "annual",
+    }),
+    withPlan({
       id: "dealer-1",
       name: "Ahmed Al Mansoori",
       email: "ahmed@example.ae",
@@ -115,8 +150,10 @@ function defaultAccounts(): AuthAccount[] {
       notes: "Premium Motors partner. Top seller Q1-Q2 2026.",
       permissions: { ...DEFAULT_DEALER_PERMISSIONS },
       createdAt: "2025-08-12",
-    },
-    {
+      planId: "pro",
+      periodStart: "2026-07-15",
+    }),
+    withPlan({
       id: "dealer-2",
       name: "Premium Motors LLC",
       email: "sales@premiummotors.ae",
@@ -131,10 +168,13 @@ function defaultAccounts(): AuthAccount[] {
       ads: 87,
       lastActive: "2026-07-16",
       notes: "Enterprise account. Dedicated account manager: Rania.",
-      permissions: { ...DEFAULT_DEALER_PERMISSIONS, maxAdsPerMonth: 500 },
+      permissions: { ...DEFAULT_DEALER_PERMISSIONS },
       createdAt: "2024-11-20",
-    },
-    {
+      planId: "enterprise",
+      billingCycle: "annual",
+      periodStart: "2025-11-20",
+    }),
+    withPlan({
       id: "dealer-3",
       name: "Gulf Auto Trade",
       email: "ops@gulfauto.ae",
@@ -151,8 +191,10 @@ function defaultAccounts(): AuthAccount[] {
       notes: "KYC docs submitted 2026-07-01. Awaiting legal review.",
       permissions: { ...DEFAULT_DEALER_PERMISSIONS },
       createdAt: "2026-03-22",
-    },
-    {
+      planId: "starter",
+      periodStart: "2026-07-01",
+    }),
+    withPlan({
       id: "dealer-4",
       name: "Tech Gadgets Store",
       email: "sales@techgadgets.ae",
@@ -167,10 +209,13 @@ function defaultAccounts(): AuthAccount[] {
       ads: 44,
       lastActive: "2026-07-15",
       notes: "Electronics specialist. Featured dealer.",
-      permissions: { ...DEFAULT_DEALER_PERMISSIONS, maxAdsPerMonth: 200 },
+      permissions: { ...DEFAULT_DEALER_PERMISSIONS },
       createdAt: "2025-06-30",
-    },
-    {
+      planId: "pro",
+      billingCycle: "annual",
+      periodStart: "2025-07-01",
+    }),
+    withPlan({
       id: "customer-1",
       name: "Sara Khan",
       email: "sara.k@example.com",
@@ -186,8 +231,10 @@ function defaultAccounts(): AuthAccount[] {
       notes: "",
       permissions: { ...DEFAULT_CUSTOMER_PERMISSIONS },
       createdAt: "2026-01-04",
-    },
-    {
+      planId: "free",
+      periodStart: "2026-07-04",
+    }),
+    withPlan({
       id: "customer-2",
       name: "Layla Ibrahim",
       email: "layla@example.ae",
@@ -203,8 +250,10 @@ function defaultAccounts(): AuthAccount[] {
       notes: "",
       permissions: { ...DEFAULT_CUSTOMER_PERMISSIONS },
       createdAt: "2025-12-01",
-    },
-    {
+      planId: "starter",
+      periodStart: "2026-07-01",
+    }),
+    withPlan({
       id: "customer-3",
       name: "Omar Hassan",
       email: "omar@example.ae",
@@ -220,8 +269,10 @@ function defaultAccounts(): AuthAccount[] {
       notes: "Banned: fraudulent listings. Case #2026-0318.",
       permissions: { ...BANNED_PERMISSIONS },
       createdAt: "2026-02-18",
-    },
-    {
+      planId: "starter",
+      periodStart: "2026-02-18",
+    }),
+    withPlan({
       id: "customer-4",
       name: "Fatima Al Zaabi",
       email: "fatima.z@example.ae",
@@ -237,7 +288,9 @@ function defaultAccounts(): AuthAccount[] {
       notes: "",
       permissions: { ...DEFAULT_CUSTOMER_PERMISSIONS },
       createdAt: "2026-05-14",
-    },
+      planId: "free",
+      periodStart: "2026-07-14",
+    }),
   ];
 }
 
@@ -249,25 +302,47 @@ function mergeMissingSeeds(stored: AuthAccount[]): AuthAccount[] {
 
   const merged = stored.map((account) => {
     const demo = seedByEmail[account.email.toLowerCase()];
-    if (!demo) return account;
-    const next: AuthAccount = {
-      ...account,
-      phone: account.phone ?? demo.phone,
-      location: account.location ?? demo.location,
-      notes: account.notes ?? demo.notes,
-      kycStatus: account.kycStatus ?? demo.kycStatus,
-      ads: account.ads ?? demo.ads,
-      lastActive: account.lastActive ?? demo.lastActive,
-      tradeLicense: account.tradeLicense ?? demo.tradeLicense,
-    };
+    let next: AuthAccount = { ...account };
+    if (demo) {
+      next = {
+        ...next,
+        phone: next.phone ?? demo.phone,
+        location: next.location ?? demo.location,
+        notes: next.notes ?? demo.notes,
+        kycStatus: next.kycStatus ?? demo.kycStatus,
+        ads: next.ads ?? demo.ads,
+        lastActive: next.lastActive ?? demo.lastActive,
+        tradeLicense: next.tradeLicense ?? demo.tradeLicense,
+        subscription: next.subscription ?? demo.subscription,
+      };
+    }
+    if (!next.subscription) {
+      const planId = defaultPlanForRole(next.role);
+      next = {
+        ...next,
+        subscription: buildSubscription(planId, "monthly", next.createdAt || new Date().toISOString().slice(0, 10)),
+        permissions: {
+          ...next.permissions,
+          maxAdsPerMonth: getPlan(planId).maxAds,
+        },
+      };
+      changed = true;
+    } else {
+      next = {
+        ...next,
+        subscription: refreshSubscriptionStatus(next.subscription),
+      };
+    }
     if (
-      next.phone !== account.phone ||
-      next.location !== account.location ||
-      next.notes !== account.notes ||
-      next.kycStatus !== account.kycStatus ||
-      next.ads !== account.ads ||
-      next.lastActive !== account.lastActive ||
-      next.tradeLicense !== account.tradeLicense
+      demo &&
+      (next.phone !== account.phone ||
+        next.location !== account.location ||
+        next.notes !== account.notes ||
+        next.kycStatus !== account.kycStatus ||
+        next.ads !== account.ads ||
+        next.lastActive !== account.lastActive ||
+        next.tradeLicense !== account.tradeLicense ||
+        !account.subscription)
     ) {
       changed = true;
     }
@@ -329,7 +404,24 @@ function normalizePermissions(role: UserRole, perms?: Partial<FrontendPermission
   };
 }
 
+function ensureSubscription(account: AuthAccount): UserSubscription {
+  if (account.subscription) return refreshSubscriptionStatus(account.subscription);
+  return buildSubscription(defaultPlanForRole(account.role), "monthly", account.createdAt);
+}
+
+function applyPlanPermissions(account: AuthAccount, planId: PlanId): FrontendPermissions {
+  const plan = getPlan(planId);
+  const base = account.banned
+    ? { ...BANNED_PERMISSIONS }
+    : normalizePermissions(account.role, account.permissions);
+  return { ...base, maxAdsPerMonth: plan.maxAds };
+}
+
 function toSession(account: AuthAccount): SessionUser {
+  const subscription = ensureSubscription(account);
+  const permissions = account.banned
+    ? { ...BANNED_PERMISSIONS }
+    : applyPlanPermissions({ ...account, subscription }, subscription.planId);
   return {
     id: account.id,
     name: account.name,
@@ -337,9 +429,8 @@ function toSession(account: AuthAccount): SessionUser {
     role: account.role,
     banned: account.banned,
     verified: account.verified,
-    permissions: account.banned
-      ? { ...BANNED_PERMISSIONS }
-      : normalizePermissions(account.role, account.permissions),
+    permissions,
+    subscription,
   };
 }
 
@@ -395,12 +486,14 @@ export async function login(input: {
   });
 }
 
-/** Public signup — customer or dealer only (never admin). */
+/** Public signup — customer or dealer only (never admin). Requires a subscription plan. */
 export async function signup(input: {
   email: string;
   password: string;
   name: string;
   role: "customer" | "dealer";
+  planId: PlanId;
+  billingCycle?: BillingCycle;
   tradeLicense?: string;
   vatTrn?: string;
 }): Promise<ApiResult<SessionUser>> {
@@ -408,6 +501,7 @@ export async function signup(input: {
     const email = input.email.trim().toLowerCase();
     if (!email || input.password.length < 6) return fail("Invalid credentials");
     if (input.name.trim().length < 2) return fail("Name is required");
+    if (!input.planId || !getPlan(input.planId)) return fail("Please select a subscription plan");
     if (input.role === "dealer" && !input.tradeLicense?.trim()) {
       return fail("Trade License Number is required for dealers");
     }
@@ -415,6 +509,13 @@ export async function signup(input: {
     if (accounts.some((a) => a.email.toLowerCase() === email)) {
       return fail("An account with this email already exists. Please sign in.");
     }
+    const today = new Date().toISOString().slice(0, 10);
+    const plan = getPlan(input.planId);
+    const cycle = input.billingCycle || "monthly";
+    const permissions = {
+      ...permissionsForRole(input.role),
+      maxAdsPerMonth: plan.maxAds,
+    };
     const account: AuthAccount = {
       id: `${input.role}-${Date.now()}`,
       name: input.name.trim(),
@@ -430,9 +531,10 @@ export async function signup(input: {
       notes: input.tradeLicense?.trim() ? `Trade License: ${input.tradeLicense.trim()}` : "",
       kycStatus: defaultKycForRole(input.role, false),
       ads: 0,
-      lastActive: new Date().toISOString().slice(0, 10),
-      permissions: permissionsForRole(input.role),
-      createdAt: new Date().toISOString().slice(0, 10),
+      lastActive: today,
+      permissions,
+      subscription: buildSubscription(input.planId, cycle, today, 0),
+      createdAt: today,
     };
     saveAccounts([account, ...accounts]);
     const session = toSession(account);
@@ -499,6 +601,9 @@ export async function adminCreateAccount(
       return fail("An account with this email already exists.");
     }
 
+    const today = new Date().toISOString().slice(0, 10);
+    const planId = input.planId || defaultPlanForRole(input.role);
+    const plan = getPlan(planId);
     const account: AuthAccount = {
       id: `${input.role}-${Date.now()}`,
       name: input.name.trim(),
@@ -514,9 +619,10 @@ export async function adminCreateAccount(
       notes: "",
       kycStatus: defaultKycForRole(input.role, false),
       ads: 0,
-      lastActive: new Date().toISOString().slice(0, 10),
-      permissions: permissionsForRole(input.role),
-      createdAt: new Date().toISOString().slice(0, 10),
+      lastActive: today,
+      permissions: { ...permissionsForRole(input.role), maxAdsPerMonth: plan.maxAds },
+      subscription: buildSubscription(planId, input.billingCycle || "monthly", today, 0),
+      createdAt: today,
     };
     saveAccounts([account, ...accounts]);
     return ok(toPublicAccount(account));
@@ -719,3 +825,184 @@ export async function updateAccountFlags(
     return ok(toPublicAccount(updated));
   }, 0);
 }
+
+export type AdQuota = {
+  planId: PlanId;
+  planName: string;
+  maxAds: number;
+  used: number;
+  remaining: number;
+  periodStart: string;
+  periodEnd: string;
+  status: UserSubscription["status"];
+  canPost: boolean;
+  canRenew: boolean;
+};
+
+function resolveAccountSubscription(account: AuthAccount): UserSubscription {
+  return refreshSubscriptionStatus(ensureSubscription(account));
+}
+
+export function getAdQuotaSync(userIdOrEmail?: string): AdQuota | null {
+  const session = getSessionSync();
+  const key = userIdOrEmail || session?.email || session?.id;
+  if (!key) return null;
+  const account = loadAccounts().find(
+    (a) => a.id === key || emailEq(a.email, key),
+  );
+  if (!account) return null;
+  const sub = resolveAccountSubscription(account);
+  const plan = getPlan(sub.planId);
+  const used = sub.adsUsedThisPeriod;
+  const remaining = Math.max(0, plan.maxAds - used);
+  const active = sub.status === "active";
+  return {
+    planId: sub.planId,
+    planName: plan.name,
+    maxAds: plan.maxAds,
+    used,
+    remaining,
+    periodStart: sub.periodStart,
+    periodEnd: sub.periodEnd,
+    status: sub.status,
+    canPost: active && remaining > 0 && !account.banned,
+    canRenew: isPaidPlan(sub.planId),
+  };
+}
+
+/** Upgrade to a higher plan. Resets the billing window from today. */
+export async function upgradeSubscription(input: {
+  planId: PlanId;
+  billingCycle?: BillingCycle;
+}): Promise<ApiResult<SessionUser>> {
+  return withLatency(() => {
+    const session = getSessionSync();
+    if (!session) return fail("Sign in required");
+    if (session.role === "admin") return fail("Admin accounts do not need a subscription upgrade");
+
+    const accounts = loadAccounts();
+    const idx = findAccountIndex(accounts, session.email);
+    if (idx < 0) return fail("Account not found");
+
+    const current = resolveAccountSubscription(accounts[idx]);
+    if (planRank(input.planId) < planRank(current.planId)) {
+      return fail("Choose a higher plan to upgrade, or renew your current plan.");
+    }
+    if (input.planId === current.planId && current.status === "active") {
+      return fail("You are already on this plan. Use Renew to extend the period.");
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const cycle = input.billingCycle || current.billingCycle || "monthly";
+    const plan = getPlan(input.planId);
+    const updated: AuthAccount = {
+      ...accounts[idx],
+      subscription: buildSubscription(input.planId, cycle, today, 0),
+      permissions: {
+        ...accounts[idx].permissions,
+        maxAdsPerMonth: plan.maxAds,
+      },
+    };
+    accounts[idx] = updated;
+    saveAccounts(accounts);
+    const nextSession = toSession(updated);
+    writeJson(SESSION_KEY, nextSession);
+    notify();
+    return ok(nextSession);
+  }, 0);
+}
+
+/**
+ * Renew the current paid plan (allowed mid-period).
+ * Resets the window from the renew date and clears ad usage.
+ * Free plan cannot be renewed — upgrade instead.
+ */
+export async function renewSubscription(
+  billingCycle?: BillingCycle,
+): Promise<ApiResult<SessionUser>> {
+  return withLatency(() => {
+    const session = getSessionSync();
+    if (!session) return fail("Sign in required");
+
+    const accounts = loadAccounts();
+    const idx = findAccountIndex(accounts, session.email);
+    if (idx < 0) return fail("Account not found");
+
+    const current = resolveAccountSubscription(accounts[idx]);
+    if (!isPaidPlan(current.planId)) {
+      return fail("Free plan cannot be renewed. Please upgrade to a paid plan.");
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const nextSub = renewSubscriptionPeriod(
+      {
+        ...current,
+        billingCycle: billingCycle || current.billingCycle,
+      },
+      today,
+    );
+    const plan = getPlan(nextSub.planId);
+    const updated: AuthAccount = {
+      ...accounts[idx],
+      subscription: nextSub,
+      permissions: {
+        ...accounts[idx].permissions,
+        maxAdsPerMonth: plan.maxAds,
+      },
+    };
+    accounts[idx] = updated;
+    saveAccounts(accounts);
+    const nextSession = toSession(updated);
+    writeJson(SESSION_KEY, nextSession);
+    notify();
+    return ok(nextSession);
+  }, 0);
+}
+
+/** Consume one ad slot for the current period after a successful listing create. */
+export function recordAdPostedSync(userIdOrEmail?: string): ApiResult<AdQuota> {
+  const session = getSessionSync();
+  const key = userIdOrEmail || session?.email || session?.id;
+  if (!key) return fail("Sign in required");
+  const accounts = loadAccounts();
+  const idx = accounts.findIndex((a) => a.id === key || emailEq(a.email, key));
+  if (idx < 0) return fail("Account not found");
+
+  const sub = resolveAccountSubscription(accounts[idx]);
+  if (sub.status !== "active") {
+    return fail("Your plan period has expired. Renew or upgrade to continue posting.");
+  }
+  const plan = getPlan(sub.planId);
+  if (sub.adsUsedThisPeriod >= plan.maxAds) {
+    return fail("You have reached your plan’s ad limit. Upgrade or renew to post more ads.");
+  }
+
+  const updated: AuthAccount = {
+    ...accounts[idx],
+    ads: (accounts[idx].ads || 0) + 1,
+    subscription: {
+      ...sub,
+      adsUsedThisPeriod: sub.adsUsedThisPeriod + 1,
+    },
+  };
+  accounts[idx] = updated;
+  saveAccounts(accounts);
+  if (session && (session.id === updated.id || emailEq(session.email, updated.email))) {
+    writeJson(SESSION_KEY, toSession(updated));
+    notify();
+  }
+  return ok(getAdQuotaSync(updated.email)!);
+}
+
+export function canPostAdSync(userIdOrEmail?: string): ApiResult<true> {
+  const quota = getAdQuotaSync(userIdOrEmail);
+  if (!quota) return fail("Sign in required");
+  if (quota.status !== "active") {
+    return fail("Your plan period has expired. Renew or upgrade to continue posting.");
+  }
+  if (!quota.canPost) {
+    return fail("You have reached your plan’s ad limit. Upgrade or renew to post more ads.");
+  }
+  return ok(true);
+}
+

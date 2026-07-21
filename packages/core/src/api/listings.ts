@@ -97,7 +97,7 @@ export async function createListing(input: CreateListingInput): Promise<ApiResul
       model: input.model,
       img: input.img,
       verified: input.role === "dealer" || input.role === "admin",
-      date: 0,
+      date: Date.now(),
       description: input.description,
       status,
       ownerId: input.ownerId,

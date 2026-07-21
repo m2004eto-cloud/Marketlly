@@ -1,7 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   authApi,
+  type BillingCycle,
   type FrontendPermissions,
+  type PlanId,
   type SessionUser,
 } from "@marketly/core";
 
@@ -18,9 +20,13 @@ type AuthContextValue = {
     password: string;
     name: string;
     role: "customer" | "dealer";
+    planId: PlanId;
+    billingCycle?: BillingCycle;
     tradeLicense?: string;
     vatTrn?: string;
   }) => Promise<AuthResult>;
+  upgradePlan: (input: { planId: PlanId; billingCycle?: BillingCycle }) => Promise<AuthResult>;
+  renewPlan: (billingCycle?: BillingCycle) => Promise<AuthResult>;
   logout: () => Promise<void>;
 };
 
@@ -57,10 +63,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     password: string;
     name: string;
     role: "customer" | "dealer";
+    planId: PlanId;
+    billingCycle?: BillingCycle;
     tradeLicense?: string;
     vatTrn?: string;
   }): Promise<AuthResult> => {
     const res = await authApi.signup(input);
+    if (res.ok) {
+      setUser(res.data);
+      return { ok: true, role: res.data.role };
+    }
+    return { ok: false, error: res.error };
+  }, []);
+
+  const upgradePlan = useCallback(async (input: {
+    planId: PlanId;
+    billingCycle?: BillingCycle;
+  }): Promise<AuthResult> => {
+    const res = await authApi.upgradeSubscription(input);
+    if (res.ok) {
+      setUser(res.data);
+      return { ok: true, role: res.data.role };
+    }
+    return { ok: false, error: res.error };
+  }, []);
+
+  const renewPlan = useCallback(async (billingCycle?: BillingCycle): Promise<AuthResult> => {
+    const res = await authApi.renewSubscription(billingCycle);
     if (res.ok) {
       setUser(res.data);
       return { ok: true, role: res.data.role };
@@ -91,9 +120,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       can,
       signIn,
       signUp,
+      upgradePlan,
+      renewPlan,
       logout,
     }),
-    [user, loading, can, signIn, signUp, logout],
+    [user, loading, can, signIn, signUp, upgradePlan, renewPlan, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

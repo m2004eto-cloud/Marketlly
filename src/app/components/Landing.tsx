@@ -2,8 +2,9 @@ import { useState } from "react";
 import {
   Search, MapPin, Bell, BookmarkCheck, Heart, MessageCircle, UserCog, X,
   Car, Tag, ArrowRight, Smartphone, Gavel, Flame,
-  ChevronDown, User, Globe, FileText, BadgeCheck, Calendar, Wrench, Bookmark, Settings, LogOut, ShieldCheck,
+  ChevronDown, User, Globe, FileText, BadgeCheck, Calendar, Wrench, Bookmark, Settings, LogOut, ShieldCheck, Zap,
 } from "lucide-react";
+import { authApi, type BillingCycle, type PlanId } from "@marketly/core";
 import { useAuction, getStatus, useCountdown } from "../AuctionContext";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { HeaderControls } from "./HeaderControls";
@@ -18,6 +19,7 @@ import { Banners } from "./Banners";
 import { getListings } from "../data";
 import { useRecentlyViewed } from "../hooks";
 import { formatCurrency } from "../utils";
+import { SubscriptionManager } from "./SubscriptionPlans";
 
 type Props = {
   onNavigate: (page: string, params?: Record<string, string>) => void;
@@ -119,12 +121,15 @@ function LiveAuctionsSection({ onNavigate }: { onNavigate: (page: string, params
 export function Landing({ onNavigate, user, onLogout }: Props) {
   const { t } = useTranslation();
   const { lang } = useApp();
-  const { can, user: session } = useAuth();
+  const { can, user: session, upgradePlan, renewPlan } = useAuth();
   const [showBanner, setShowBanner] = useState(true);
   const [tab, setTab] = useState("All");
   const [motorsOpen, setMotorsOpen] = useState(false);
   const [classifiedsOpen, setClassifiedsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [showSubscription, setShowSubscription] = useState(false);
+  const [subBusy, setSubBusy] = useState(false);
+  const quota = session && session.role !== "admin" ? authApi.getAdQuotaSync(session.email) : null;
 
   const categoryAllowed = (id: string) => {
     if (!session || session.role === "admin") return true;
@@ -248,6 +253,20 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">IPA</span>
                           </button>
                         </>
+                      )}
+                      {session?.role !== "admin" && (
+                        <button
+                          onClick={() => { setProfileOpen(false); setShowSubscription(true); }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-start hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800"
+                        >
+                          <Zap className="size-4 text-amber-500" />
+                          <span className="flex-1 truncate text-sm">Subscription & Plans</span>
+                          {quota && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                              {quota.planName}
+                            </span>
+                          )}
+                        </button>
                       )}
                       {[
                         { icon: User, label: "My Profile" },
@@ -563,6 +582,41 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
           </div>
         </div>
       </footer>
+
+      {showSubscription && session && session.role !== "admin" && (
+        <SubscriptionManager
+          currentPlanId={(session.subscription?.planId || quota?.planId || "free") as PlanId}
+          periodEnd={quota?.periodEnd || session.subscription?.periodEnd}
+          adsUsed={quota?.used ?? session.subscription?.adsUsedThisPeriod ?? 0}
+          maxAds={quota?.maxAds ?? session.permissions.maxAdsPerMonth}
+          status={quota?.status || session.subscription?.status}
+          canRenew={Boolean(quota?.canRenew)}
+          busy={subBusy}
+          onClose={() => setShowSubscription(false)}
+          onUpgrade={async (planId, cycle) => {
+            setSubBusy(true);
+            const res = await upgradePlan({ planId, billingCycle: cycle as BillingCycle });
+            setSubBusy(false);
+            if (!res.ok) {
+              toast.error(res.error || "Upgrade failed");
+              return;
+            }
+            toast.success(`Upgraded to ${planId}`);
+            setShowSubscription(false);
+          }}
+          onRenew={async (cycle) => {
+            setSubBusy(true);
+            const res = await renewPlan(cycle as BillingCycle);
+            setSubBusy(false);
+            if (!res.ok) {
+              toast.error(res.error || "Renew failed");
+              return;
+            }
+            toast.success("Plan renewed — new period starts today");
+            setShowSubscription(false);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, Car, Tag, Upload, MapPin, Check, X, Trash2, Gavel, FileText } from "lucide-react";
+import { ArrowLeft, Car, Tag, Upload, MapPin, Check, X, Trash2, Gavel, FileText, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useForm } from "react-hook-form";
@@ -8,9 +8,10 @@ import { z } from "zod";
 import { HeaderControls } from "./HeaderControls";
 import { Editable } from "./Editable";
 import { useCatalog } from "../PostAdCatalogContext";
-import { listingsApi } from "@marketly/core";
+import { authApi, listingsApi, type BillingCycle, type PlanId } from "@marketly/core";
 import { useAuth } from "../AuthContext";
 import { useAuction, type NewAuctionDraft } from "../AuctionContext";
+import { SubscriptionManager } from "./SubscriptionPlans";
 
 const detailsSchema = z.object({
   title: z.string().min(8, "Title must be at least 8 characters").max(80, "Title is too long"),
@@ -348,11 +349,14 @@ const classifiedsFields: Field[] = [
 export function PostAd({ onBack, onCreated, onAuctionCreated }: Props) {
   const { t } = useTranslation();
   const { catalog } = useCatalog();
-  const { user, can } = useAuth();
+  const { user, can, upgradePlan, renewPlan } = useAuth();
   const { createAuction } = useAuction();
   const isDealerLike = user?.role === "dealer" || user?.role === "admin";
   const canPostAuction = Boolean(user && (user.role === "admin" || can("canPostAuction")));
   const [postMode, setPostMode] = useState<PostMode | null>(isDealerLike ? null : "listing");
+  const [showSubscription, setShowSubscription] = useState(false);
+  const [subBusy, setSubBusy] = useState(false);
+  const quota = user && user.role !== "admin" ? authApi.getAdQuotaSync(user.email) : null;
   const [auctionExtras, setAuctionExtras] = useState({
     startingPrice: "",
     reservePrice: "",
@@ -449,6 +453,15 @@ export function PostAd({ onBack, onCreated, onAuctionCreated }: Props) {
   const submit = contactForm.handleSubmit(async () => {
     const details = detailsForm.getValues();
 
+    if (user && user.role !== "admin") {
+      const gate = authApi.canPostAdSync(user.email);
+      if (!gate.ok) {
+        toast.error(gate.error);
+        setShowSubscription(true);
+        return;
+      }
+    }
+
     if (postMode === "auction") {
       if (!canPostAuction) {
         toast.error("You do not have permission to post cars in auction. Ask an admin to enable it.");
@@ -496,6 +509,7 @@ export function PostAd({ onBack, onCreated, onAuctionCreated }: Props) {
         sellerName: user?.name || "Dealer",
       };
       const auctionId = createAuction(draft);
+      if (user && user.role !== "admin") authApi.recordAdPostedSync(user.email);
       setStep(4);
       toast.success("Car listed for auction — bidding is live.");
       onAuctionCreated?.(auctionId);
@@ -519,6 +533,7 @@ export function PostAd({ onBack, onCreated, onAuctionCreated }: Props) {
       toast.error(res.error);
       return;
     }
+    if (user && user.role !== "admin") authApi.recordAdPostedSync(user.email);
     setStep(4);
     toast.success(
       res.data.status === "pending"
@@ -665,6 +680,31 @@ export function PostAd({ onBack, onCreated, onAuctionCreated }: Props) {
       </header>
 
       <div className="max-w-3xl mx-auto px-4 py-8">
+        {quota && (
+          <div className={`mb-4 rounded-xl border px-4 py-3 flex flex-wrap items-center gap-3 ${
+            !quota.canPost
+              ? "border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800"
+              : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+          }`}>
+            <Zap className="size-4 text-amber-500 shrink-0" />
+            <div className="flex-1 min-w-0 text-sm">
+              <span className="font-medium">{quota.planName}</span>
+              <span className="text-slate-500"> · {quota.used}/{quota.maxAds >= 99999 ? "∞" : quota.maxAds} ads this period · ends {quota.periodEnd}</span>
+              {!quota.canPost && (
+                <p className="text-xs text-amber-800 dark:text-amber-200 mt-0.5">
+                  Limit reached or period expired. Upgrade or renew to keep posting.
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowSubscription(true)}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+            >
+              {quota.canRenew ? "Upgrade / Renew" : "Upgrade plan"}
+            </button>
+          </div>
+        )}
         <div className="flex items-center gap-2 mb-8">
           {[1, 2, 3].map((s) => (
             <div key={s} className="flex-1 flex items-center gap-2">
@@ -980,6 +1020,41 @@ export function PostAd({ onBack, onCreated, onAuctionCreated }: Props) {
           )}
         </div>
       </div>
+
+      {showSubscription && user && user.role !== "admin" && (
+        <SubscriptionManager
+          currentPlanId={(user.subscription?.planId || quota?.planId || "free") as PlanId}
+          periodEnd={quota?.periodEnd || user.subscription?.periodEnd}
+          adsUsed={quota?.used ?? user.subscription?.adsUsedThisPeriod ?? 0}
+          maxAds={quota?.maxAds ?? user.permissions.maxAdsPerMonth}
+          status={quota?.status || user.subscription?.status}
+          canRenew={Boolean(quota?.canRenew)}
+          busy={subBusy}
+          onClose={() => setShowSubscription(false)}
+          onUpgrade={async (planId, cycle) => {
+            setSubBusy(true);
+            const res = await upgradePlan({ planId, billingCycle: cycle as BillingCycle });
+            setSubBusy(false);
+            if (!res.ok) {
+              toast.error(res.error || "Upgrade failed");
+              return;
+            }
+            toast.success(`Upgraded to ${planId}`);
+            setShowSubscription(false);
+          }}
+          onRenew={async (cycle) => {
+            setSubBusy(true);
+            const res = await renewPlan(cycle as BillingCycle);
+            setSubBusy(false);
+            if (!res.ok) {
+              toast.error(res.error || "Renew failed");
+              return;
+            }
+            toast.success("Plan renewed — new period starts today");
+            setShowSubscription(false);
+          }}
+        />
+      )}
     </div>
   );
 }
