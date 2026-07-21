@@ -38,7 +38,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     highlight: false,
     color: "slate",
     features: ["5 ads/month", "Basic listing", "Standard search placement", "Email support"],
-    recommendedFor: ["customer"],
+    recommendedFor: ["customer", "dealer"],
   },
   {
     id: "starter",
@@ -55,7 +55,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       "Photo gallery up to 15 photos",
       "Chat support",
     ],
-    recommendedFor: ["customer"],
+    recommendedFor: ["customer", "dealer"],
   },
   {
     id: "pro",
@@ -84,7 +84,6 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     maxAds: 99999,
     highlight: false,
     color: "amber",
-    badge: "Dealer Edition",
     features: [
       "Unlimited ads",
       "Multiple homepage slots",
@@ -93,7 +92,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       "API access",
       "Dedicated account manager",
     ],
-    recommendedFor: ["dealer"],
+    recommendedFor: ["customer", "dealer"],
   },
 ];
 
@@ -123,7 +122,7 @@ export function plansForRole(role: "customer" | "dealer"): SubscriptionPlan[] {
 
 export function defaultPlanForRole(role: "customer" | "dealer" | "admin"): PlanId {
   if (role === "admin") return "enterprise";
-  if (role === "dealer") return "pro";
+  // Customers and dealers start on Free, then upgrade as needed.
   return "free";
 }
 

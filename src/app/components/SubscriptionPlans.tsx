@@ -164,6 +164,7 @@ function PlanCard({
 }
 
 type ManageProps = {
+  role?: "customer" | "dealer";
   currentPlanId: PlanId;
   periodEnd?: string;
   adsUsed?: number;
@@ -177,6 +178,7 @@ type ManageProps = {
 };
 
 export function SubscriptionManager({
+  role = "customer",
   currentPlanId,
   periodEnd,
   adsUsed = 0,
@@ -260,7 +262,7 @@ export function SubscriptionManager({
           {mode === "upgrade" ? (
             <>
               <PlanPicker
-                role="customer"
+                role={role}
                 selectedPlanId={selectedPlanId}
                 billingCycle={billingCycle}
                 onSelectPlan={setSelectedPlanId}

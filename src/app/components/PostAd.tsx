@@ -1023,6 +1023,7 @@ export function PostAd({ onBack, onCreated, onAuctionCreated }: Props) {
 
       {showSubscription && user && user.role !== "admin" && (
         <SubscriptionManager
+          role={user.role === "dealer" ? "dealer" : "customer"}
           currentPlanId={(user.subscription?.planId || quota?.planId || "free") as PlanId}
           periodEnd={quota?.periodEnd || user.subscription?.periodEnd}
           adsUsed={quota?.used ?? user.subscription?.adsUsedThisPeriod ?? 0}

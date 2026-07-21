@@ -144,7 +144,7 @@ const PLANS: Plan[] = [
   },
   {
     id: "enterprise", name: "Enterprise", monthlyPrice: 999, annualPrice: 9990,
-    maxAds: 99999, highlight: false, color: "amber", badge: "Dealer Edition",
+    maxAds: 99999, highlight: false, color: "amber", badge: undefined,
     features: ["Unlimited ads", "Multiple homepage slots", "Top search rank always", "Branded dealer page", "API access", "Dedicated account manager", "Custom invoice branding", "VAT filing support"],
   },
 ];

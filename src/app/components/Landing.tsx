@@ -585,6 +585,7 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
 
       {showSubscription && session && session.role !== "admin" && (
         <SubscriptionManager
+          role={session.role === "dealer" ? "dealer" : "customer"}
           currentPlanId={(session.subscription?.planId || quota?.planId || "free") as PlanId}
           periodEnd={quota?.periodEnd || session.subscription?.periodEnd}
           adsUsed={quota?.used ?? session.subscription?.adsUsedThisPeriod ?? 0}

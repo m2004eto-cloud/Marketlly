@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, Mail, Lock, User, Building2, ShieldCheck, FileText, Receipt } from "lucide-react";
+import { ArrowLeft, Mail, Lock, User, Building2, ShieldCheck, FileText, Receipt, Eye, EyeOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useForm } from "react-hook-form";
@@ -59,6 +59,7 @@ export function Auth({ onBack, onSignIn, onSignUp }: Props) {
   const [role, setRole] = useState<SignupRole>("customer");
   const [planId, setPlanId] = useState<PlanId>(defaultPlanForRole("customer"));
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
+  const [showPassword, setShowPassword] = useState(false);
 
   const {
     register,
@@ -109,6 +110,7 @@ export function Auth({ onBack, onSignIn, onSignUp }: Props) {
     setRole("customer");
     setPlanId(defaultPlanForRole("customer"));
     setBillingCycle("monthly");
+    setShowPassword(false);
     reset();
   };
 
@@ -175,7 +177,7 @@ export function Auth({ onBack, onSignIn, onSignUp }: Props) {
           <p className="text-slate-500 mb-6">
             {mode === "signin"
               ? "Sign in with your email. Your role and permissions are applied automatically."
-              : "Create a customer or dealer account. Admin accounts are provisioned by Marketly only."}
+              : "Create a customer or dealer account. Both start on Free — upgrade anytime. Admin accounts are provisioned by Marketly only."}
           </p>
 
           {mode === "signup" && (
@@ -241,11 +243,20 @@ export function Auth({ onBack, onSignIn, onSignUp }: Props) {
                 <Lock className="absolute start-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
                 <input
                   {...register("password")}
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   aria-invalid={!!errors.password}
                   placeholder={t("auth.password")}
-                  className={`w-full ps-10 pe-3 py-3 rounded-xl border bg-white dark:bg-slate-950 outline-none ${errors.password ? "border-red-500" : "border-slate-200 dark:border-slate-700 focus:border-blue-600"}`}
+                  className={`w-full ps-10 pe-11 py-3 rounded-xl border bg-white dark:bg-slate-950 outline-none ${errors.password ? "border-red-500" : "border-slate-200 dark:border-slate-700 focus:border-blue-600"}`}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute end-3 top-1/2 -translate-y-1/2 p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  tabIndex={0}
+                >
+                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
               </div>
               <FieldError msg={errors.password?.message} />
             </div>
