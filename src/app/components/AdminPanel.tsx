@@ -7,7 +7,7 @@ import {
   Wand2, Car, Smartphone, MapPin, MessageCircle, Image as ImageIcon, Heart, MousePointerClick, Gavel,
   ChevronRight, X, Edit3, Shield, Plus, Mail, Phone, Calendar, Download, Bell,
   Layers, Monitor, Sliders, Info, UserPlus, CreditCard, Percent, Landmark, Package,
-  RefreshCw, Receipt, LogOut, PanelLeftClose, PanelLeftOpen, Store,
+  RefreshCw, Receipt, LogOut, PanelLeftClose, PanelLeftOpen, Home, ShoppingBasket,
 } from "lucide-react";
 import { toast } from "sonner";
 import { HeaderControls } from "./HeaderControls";
@@ -141,7 +141,7 @@ export function AdminPanel({ onBack, onLogout, admin, onViewAuction }: Props) {
   const { auctions } = useAuction();
   const liveAuctions = auctions.filter((a) => getStatus(a) === "live").length;
   const [tab, setTab] = useState<Tab>("dashboard");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
   const toAdmin = (list: Listing[]): AdminListing[] => {
     const accounts = authApi.listAccountsSync().filter((a) => a.role !== "admin");
@@ -344,34 +344,161 @@ export function AdminPanel({ onBack, onLogout, admin, onViewAuction }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex">
+      {/* Sidebar — expands with labels, collapses to icon rail (like reference) */}
+      <aside
+        className={`shrink-0 bg-[#0b1220] dark:bg-[#0b0f1a] border-e border-slate-800 flex flex-col transition-[width] duration-200 ${
+          sidebarExpanded ? "w-60" : "w-[68px]"
+        }`}
+        style={{ minHeight: "100vh" }}
+      >
+        {/* Brand + collapse */}
+        <div className={`flex items-center border-b border-slate-800/80 ${sidebarExpanded ? "px-3 py-3 gap-2" : "px-2 py-3 flex-col gap-2"}`}>
+          {sidebarExpanded ? (
+            <>
+              <span className="size-8 rounded-lg bg-gradient-to-br from-blue-600 to-blue-700 text-white flex items-center justify-center shadow shrink-0">
+                <ShieldCheck className="size-4" />
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-white truncate">Marketly Admin</p>
+                <p className="text-[10px] text-slate-500 uppercase tracking-wider">Console</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSidebarExpanded(false)}
+                className="size-8 rounded-md flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800 transition"
+                title="Hide sidebar"
+                aria-label="Hide sidebar"
+              >
+                <PanelLeftClose className="size-4" />
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setSidebarExpanded(true)}
+              className="size-10 rounded-md flex items-center justify-center text-slate-200 hover:text-white hover:bg-slate-800 transition border border-slate-700/60"
+              title="Show sidebar"
+              aria-label="Show sidebar"
+            >
+              <PanelLeftOpen className="size-4" />
+            </button>
+          )}
+        </div>
+
+        {/* View Store */}
+        <div className={sidebarExpanded ? "px-3 py-3" : "px-2 py-3 flex justify-center border-b border-slate-800/60"}>
+          {sidebarExpanded ? (
+            <button
+              type="button"
+              onClick={onBack}
+              className="w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold shadow-lg shadow-blue-600/20 transition"
+              title="View Store"
+            >
+              <ShoppingBasket className="size-4" />
+              View Store
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onBack}
+              className="size-10 rounded-md flex items-center justify-center text-slate-200 hover:text-white hover:bg-slate-800 transition"
+              title="View Store"
+              aria-label="View Store"
+            >
+              <Home className="size-5" />
+            </button>
+          )}
+        </div>
+
+        {/* Nav */}
+        <div className="flex-1 overflow-y-auto py-2">
+          {navGroups.map((group, gi) => (
+            <div key={group.label} className={gi > 0 ? "mt-1 pt-2 border-t border-slate-800/60" : ""}>
+              {sidebarExpanded && (
+                <p className="px-4 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-600">{group.label}</p>
+              )}
+              {group.items.map((n) => (
+                <button
+                  key={n.id}
+                  type="button"
+                  onClick={() => setTab(n.id)}
+                  title={n.label}
+                  className={`w-full flex items-center transition relative ${
+                    sidebarExpanded ? "gap-2.5 px-4 py-2 text-sm" : "justify-center px-0 py-2.5"
+                  } ${
+                    tab === n.id
+                      ? "text-white bg-blue-600/20"
+                      : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/60"
+                  }`}
+                >
+                  {tab === n.id && sidebarExpanded && (
+                    <div className="absolute inset-y-0 start-0 w-0.5 bg-blue-500 rounded-e" />
+                  )}
+                  <n.icon className={`size-4 shrink-0 ${tab === n.id ? "text-blue-400" : "text-slate-400"}`} />
+                  {sidebarExpanded && (
+                    <>
+                      <span className="flex-1 text-start">{n.label}</span>
+                      {n.badge ? (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-600 text-white">{n.badge}</span>
+                      ) : null}
+                    </>
+                  )}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+
+        {/* Sidebar footer */}
+        <div className={`border-t border-slate-800 ${sidebarExpanded ? "px-3 py-3 space-y-2" : "px-2 py-3 flex flex-col items-center gap-2"}`}>
+          {sidebarExpanded ? (
+            <>
+              <div className="flex items-center gap-2.5 px-1">
+                <span className="size-2 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/50" />
+                <div className="text-[11px]">
+                  <p className="text-slate-300 font-medium">All systems</p>
+                  <p className="text-emerald-400">Operational</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 px-1 py-1">
+                <span className="size-7 rounded-full bg-gradient-to-br from-blue-500 to-violet-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                  {admin.name.charAt(0)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-white truncate">{admin.name}</p>
+                  <p className="text-[10px] text-slate-500">admin</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleLogout()}
+                disabled={loggingOut}
+                className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium text-rose-300 hover:text-rose-100 hover:bg-rose-950/40 transition disabled:opacity-60"
+              >
+                <LogOut className="size-3.5" /> {loggingOut ? "Signing out…" : "Logout"}
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              disabled={loggingOut}
+              className="size-10 rounded-md flex items-center justify-center text-rose-300 hover:text-rose-100 hover:bg-rose-950/40 transition disabled:opacity-60"
+              title="Logout"
+              aria-label="Logout"
+            >
+              <LogOut className="size-4" />
+            </button>
+          )}
+        </div>
+      </aside>
+
+      <div className="flex-1 flex flex-col min-w-0">
       {/* Top header */}
       <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-20">
         <div className="w-full px-4 h-14 flex items-center gap-2 sm:gap-3">
-          <button
-            type="button"
-            onClick={onBack}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition"
-            title="Back to store"
-          >
-            <Store className="size-4" />
-            <span className="hidden sm:inline">Back to store</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setSidebarOpen((v) => !v)}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition"
-            title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
-            aria-pressed={!sidebarOpen}
-          >
-            {sidebarOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
-            <span className="hidden sm:inline">{sidebarOpen ? "Hide" : "Unhide"}</span>
-          </button>
-          <div className="w-px h-5 bg-slate-200 dark:bg-slate-700" />
           <div className="flex items-center gap-2.5 min-w-0">
-            <span className="size-8 rounded-lg bg-gradient-to-br from-blue-600 to-violet-700 text-white flex items-center justify-center shadow shrink-0">
-              <ShieldCheck className="size-4" />
-            </span>
             <div className="leading-tight min-w-0">
               <p className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100 truncate">Admin Panel</p>
               <p className="text-[10px] text-slate-400 uppercase tracking-widest hidden sm:block">Marketly · Operations Console</p>
@@ -381,81 +508,10 @@ export function AdminPanel({ onBack, onLogout, admin, onViewAuction }: Props) {
             <span className="hidden md:inline text-xs text-slate-500">
               Signed in as <span className="text-slate-800 dark:text-slate-200 font-semibold">{admin.name}</span>
             </span>
-            <span className="size-7 rounded-full bg-gradient-to-br from-blue-500 to-violet-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
-              {admin.name.charAt(0)}
-            </span>
             <HeaderControls />
-            <button
-              type="button"
-              onClick={() => void handleLogout()}
-              disabled={loggingOut}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900 transition disabled:opacity-60"
-              title="Log out"
-            >
-              <LogOut className="size-4" />
-              <span className="hidden sm:inline">{loggingOut ? "Signing out…" : "Logout"}</span>
-            </button>
           </div>
         </div>
       </header>
-
-      <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
-        {sidebarOpen && (
-        <aside className="w-56 shrink-0 bg-slate-900 dark:bg-[#0b0f1a] border-e border-slate-800 flex flex-col overflow-y-auto" style={{ minHeight: "calc(100vh - 56px)" }}>
-          <div className="py-3 flex-1">
-            {navGroups.map((group, gi) => (
-              <div key={group.label} className={gi > 0 ? "mt-1 pt-2 border-t border-slate-800/60" : ""}>
-                <p className="px-4 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-600">{group.label}</p>
-                {group.items.map((n) => (
-                  <button
-                    key={n.id}
-                    onClick={() => setTab(n.id)}
-                    className={`w-full flex items-center gap-2.5 px-4 py-2 text-sm transition relative ${
-                      tab === n.id
-                        ? "text-blue-400 bg-blue-600/10"
-                        : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/60"
-                    }`}
-                  >
-                    {tab === n.id && <div className="absolute inset-y-0 start-0 w-0.5 bg-blue-500 rounded-e" />}
-                    <n.icon className={`size-4 shrink-0 ${tab === n.id ? "text-blue-400" : "text-slate-500"}`} />
-                    <span className="flex-1 text-start">{n.label}</span>
-                    {n.badge ? (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-600 text-white">{n.badge}</span>
-                    ) : null}
-                  </button>
-                ))}
-              </div>
-            ))}
-          </div>
-
-          {/* Sidebar footer */}
-          <div className="px-4 py-3 border-t border-slate-800 space-y-2">
-            <div className="flex items-center gap-2.5">
-              <span className="size-2 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/50" />
-              <div className="text-[11px]">
-                <p className="text-slate-300 font-medium">All systems</p>
-                <p className="text-emerald-400">Operational</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={onBack}
-              className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition"
-            >
-              <Store className="size-3.5" /> Back to store
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleLogout()}
-              disabled={loggingOut}
-              className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium text-rose-300 hover:text-rose-100 hover:bg-rose-950/40 transition disabled:opacity-60"
-            >
-              <LogOut className="size-3.5" /> {loggingOut ? "Signing out…" : "Logout"}
-            </button>
-          </div>
-        </aside>
-        )}
 
         {/* Main */}
         <main className="flex-1 overflow-auto p-5">
