@@ -23,6 +23,16 @@ export type FrontendPermissions = {
   canBulkManageAds: boolean;
   showVerifiedBadge: boolean;
   maxAdsPerMonth: number;
+  /** From subscription plan — max photos per ad (>= 99999 = unlimited). */
+  maxPhotosPerAd: number;
+  /** From subscription plan — analytics dashboard access. */
+  canViewAnalytics: boolean;
+  /** From subscription plan — dedicated public account page. */
+  dedicatedAccountPage: boolean;
+  /** Search boost score from plan (0 standard … 3 top). */
+  searchRankScore: number;
+  /** Homepage featured slots granted by plan. */
+  homepageSlots: number;
 };
 
 export type SessionUser = {
@@ -77,6 +87,10 @@ export type Listing = {
   model?: string;
   img: string;
   verified: boolean;
+  /** Homepage / browse featured slot from seller plan */
+  featured?: boolean;
+  /** Higher = earlier in default search (from seller plan rank) */
+  searchRank?: number;
   date: number;
   description: string;
   status: ListingStatus;
@@ -114,6 +128,8 @@ export type CreateListingInput = {
   ownerId?: string;
   ownerName?: string;
   role?: UserRole;
+  featured?: boolean;
+  searchRank?: number;
 };
 
 /** Applied on every new signup — auction capabilities stay off until admin enables them. */
@@ -133,6 +149,11 @@ export const DEFAULT_CUSTOMER_PERMISSIONS: FrontendPermissions = {
   canBulkManageAds: false,
   showVerifiedBadge: false,
   maxAdsPerMonth: 5,
+  maxPhotosPerAd: 5,
+  canViewAnalytics: false,
+  dedicatedAccountPage: false,
+  searchRankScore: 0,
+  homepageSlots: 0,
 };
 
 export const DEFAULT_DEALER_PERMISSIONS: FrontendPermissions = {
@@ -142,6 +163,11 @@ export const DEFAULT_DEALER_PERMISSIONS: FrontendPermissions = {
   canBulkManageAds: true,
   showVerifiedBadge: true,
   maxAdsPerMonth: 100,
+  maxPhotosPerAd: 15,
+  canViewAnalytics: false,
+  dedicatedAccountPage: false,
+  searchRankScore: 0,
+  homepageSlots: 0,
   // Auction browse / bid / post remain false until admin switches them on
   canBrowseAuctions: false,
   canBidInAuctions: false,
@@ -172,4 +198,9 @@ export const BANNED_PERMISSIONS: FrontendPermissions = {
   canBulkManageAds: false,
   showVerifiedBadge: false,
   maxAdsPerMonth: 0,
+  maxPhotosPerAd: 0,
+  canViewAnalytics: false,
+  dedicatedAccountPage: false,
+  searchRankScore: 0,
+  homepageSlots: 0,
 };

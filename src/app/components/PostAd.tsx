@@ -418,6 +418,8 @@ export function PostAd({ onBack, onCreated, onAuctionCreated }: Props) {
   const [meta, setMeta] = useState<Record<string, string>>({});
   const [multi, setMulti] = useState<Record<string, string[]>>({});
   const [photos, setPhotos] = useState<string[]>([]);
+  const maxPhotos = user?.permissions.maxPhotosPerAd ?? 5;
+  const photoLimit = maxPhotos >= 99999 ? 50 : Math.max(1, maxPhotos);
 
   const detailsForm = useForm<DetailsValues>({
     resolver: zodResolver(detailsSchema),
@@ -442,7 +444,15 @@ export function PostAd({ onBack, onCreated, onAuctionCreated }: Props) {
       const reader = new FileReader();
       reader.onload = (e) => {
         const dataUrl = e.target?.result as string;
-        if (dataUrl) setPhotos((p) => p.length < 25 ? [...p, dataUrl] : p);
+        if (dataUrl) {
+          setPhotos((p) => {
+            if (p.length >= photoLimit) {
+              toast.error(`Your plan allows up to ${photoLimit >= 50 ? "unlimited" : photoLimit} photos`);
+              return p;
+            }
+            return [...p, dataUrl];
+          });
+        }
       };
       reader.readAsDataURL(file);
     });
@@ -504,7 +514,7 @@ export function PostAd({ onBack, onCreated, onAuctionCreated }: Props) {
         minIncrement: increment,
         startTime: now,
         endTime: now + hours * 3_600_000,
-        featured: Boolean(user?.permissions.showVerifiedBadge),
+        featured: Boolean(user?.permissions.canFeatureListings || (user?.permissions.homepageSlots ?? 0) > 0),
         sellerId: user?.id || "dealer",
         sellerName: user?.name || "Dealer",
       };
@@ -528,6 +538,8 @@ export function PostAd({ onBack, onCreated, onAuctionCreated }: Props) {
       ownerId: user?.id,
       ownerName: user?.name,
       role: user?.role,
+      featured: Boolean(user?.permissions.canFeatureListings && (user.permissions.homepageSlots ?? 0) > 0),
+      searchRank: user?.permissions.searchRankScore ?? 0,
     });
     if (!res.ok) {
       toast.error(res.error);
@@ -985,11 +997,13 @@ export function PostAd({ onBack, onCreated, onAuctionCreated }: Props) {
                     </button>
                   </div>
                 ))}
-                {photos.length < 25 && (
+                {photos.length < photoLimit && (
                   <label className="aspect-square rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/20 flex flex-col items-center justify-center text-slate-500 cursor-pointer transition">
                     <Upload className="size-5 mb-1" />
                     <span className="text-sm">{t("post.addPhoto")}</span>
-                    <span className="text-xs text-slate-400 mt-0.5">JPG, PNG, WEBP</span>
+                    <span className="text-xs text-slate-400 mt-0.5">
+                      {photos.length}/{maxPhotos >= 99999 ? "∞" : photoLimit} · JPG, PNG, WEBP
+                    </span>
                     <input
                       type="file"
                       accept="image/*"

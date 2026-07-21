@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   DollarSign, CreditCard, Receipt, TrendingUp, ArrowUpRight, ArrowDownRight,
   Users, Building2, ShieldCheck, Clock, CheckCircle2, XCircle, AlertTriangle,
@@ -7,22 +7,20 @@ import {
   Percent, Landmark, Smartphone, Package, ChevronDown, CheckSquare,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  authApi,
+  buildPlanComparisonMatrix,
+  listPlans,
+  savePlans,
+  subscribePlans,
+  syncAdsFeatureLine,
+  type BillingCycle,
+  type SubscriptionPlan,
+} from "@marketly/core";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type BillingCycle = "monthly" | "annual";
-
-type Plan = {
-  id: string;
-  name: string;
-  monthlyPrice: number;
-  annualPrice: number;
-  maxAds: number;
-  features: string[];
-  highlight: boolean;
-  color: string;
-  badge?: string;
-};
+type Plan = SubscriptionPlan;
 
 type Subscription = {
   id: number;
@@ -126,29 +124,6 @@ const PAYMENT_METHODS: Record<PaymentMethodKey, { label: string; color: string; 
 
 // ─── Seed Data ────────────────────────────────────────────────────────────────
 
-const PLANS: Plan[] = [
-  {
-    id: "free", name: "Free", monthlyPrice: 0, annualPrice: 0,
-    maxAds: 5, highlight: false, color: "slate", badge: undefined,
-    features: ["5 ads/month", "Basic listing", "Standard search placement", "Email support"],
-  },
-  {
-    id: "starter", name: "Starter", monthlyPrice: 99, annualPrice: 990,
-    maxAds: 20, highlight: false, color: "blue", badge: undefined,
-    features: ["20 ads/month", "Featured badge", "Priority search placement", "Photo gallery up to 15 photos", "Chat support"],
-  },
-  {
-    id: "pro", name: "Pro", monthlyPrice: 299, annualPrice: 2990,
-    maxAds: 100, highlight: true, color: "violet", badge: "Most Popular",
-    features: ["100 ads/month", "Homepage featured slot", "Premium search rank", "Unlimited photos", "Analytics dashboard", "Priority support", "Dedicated account page"],
-  },
-  {
-    id: "enterprise", name: "Enterprise", monthlyPrice: 999, annualPrice: 9990,
-    maxAds: 99999, highlight: false, color: "amber", badge: undefined,
-    features: ["Unlimited ads", "Multiple homepage slots", "Top search rank always", "Branded dealer page", "API access", "Dedicated account manager", "Custom invoice branding", "VAT filing support"],
-  },
-];
-
 const SUBSCRIPTIONS: Subscription[] = [
   { id: 1, userId: 3, userName: "Premium Motors LLC", email: "sales@premiummotors.ae", planId: "enterprise", status: "active", billingCycle: "annual", startDate: "2025-11-20", renewalDate: "2026-11-20", paymentMethod: "bank_transfer", amount: 9990, autoRenew: true },
   { id: 2, userId: 1, userName: "Ahmed Al Mansoori", email: "ahmed@example.ae", planId: "pro", status: "active", billingCycle: "monthly", startDate: "2026-01-15", renewalDate: "2026-08-15", paymentMethod: "visa", amount: 299, autoRenew: true },
@@ -166,14 +141,15 @@ const makeItems = (plan: Plan, cycle: BillingCycle): InvoiceItem[] => {
   return [{ description: `${plan.name} Plan — ${cycle === "annual" ? "Annual" : "Monthly"} subscription`, qty: 1, unitPrice: net, vatAmount: vat, total: price }];
 };
 
+const SEED_PLANS = listPlans();
 const INVOICES: Invoice[] = [
-  { id: 1, number: "MKT-2026-0012", userId: 3, userName: "Premium Motors LLC", email: "sales@premiummotors.ae", buyerTrn: "100876543210001", date: "2026-07-01", dueDate: "2026-07-31", items: makeItems(PLANS[3], "annual"), status: "paid", paymentMethod: "bank_transfer" },
-  { id: 2, number: "MKT-2026-0011", userId: 1, userName: "Ahmed Al Mansoori", email: "ahmed@example.ae", date: "2026-07-01", dueDate: "2026-07-15", items: makeItems(PLANS[2], "monthly"), status: "paid", paymentMethod: "visa" },
-  { id: 3, number: "MKT-2026-0010", userId: 5, userName: "Layla Ibrahim", email: "layla@example.ae", date: "2026-07-01", dueDate: "2026-07-15", items: makeItems(PLANS[1], "monthly"), status: "paid", paymentMethod: "apple_pay" },
-  { id: 4, number: "MKT-2026-0009", userId: 8, userName: "Tech Gadgets Store", email: "sales@techgadgets.ae", buyerTrn: "100765432109876", date: "2026-06-30", dueDate: "2026-07-14", items: makeItems(PLANS[2], "annual"), status: "pending", paymentMethod: undefined },
-  { id: 5, number: "MKT-2026-0008", userId: 6, userName: "Gulf Auto Trade", email: "ops@gulfauto.ae", date: "2026-07-01", dueDate: "2026-07-08", items: makeItems(PLANS[1], "monthly"), status: "pending", paymentMethod: undefined },
-  { id: 6, number: "MKT-2026-0007", userId: 7, userName: "Fatima Al Zaabi", email: "fatima.z@example.ae", date: "2026-06-01", dueDate: "2026-06-15", items: makeItems(PLANS[1], "monthly"), status: "overdue", paymentMethod: undefined },
-  { id: 7, number: "MKT-2026-0006", userId: 3, userName: "Premium Motors LLC", email: "sales@premiummotors.ae", buyerTrn: "100876543210001", date: "2026-06-01", dueDate: "2026-06-30", items: makeItems(PLANS[3], "annual"), status: "paid", paymentMethod: "bank_transfer" },
+  { id: 1, number: "MKT-2026-0012", userId: 3, userName: "Premium Motors LLC", email: "sales@premiummotors.ae", buyerTrn: "100876543210001", date: "2026-07-01", dueDate: "2026-07-31", items: makeItems(SEED_PLANS[3], "annual"), status: "paid", paymentMethod: "bank_transfer" },
+  { id: 2, number: "MKT-2026-0011", userId: 1, userName: "Ahmed Al Mansoori", email: "ahmed@example.ae", date: "2026-07-01", dueDate: "2026-07-15", items: makeItems(SEED_PLANS[2], "monthly"), status: "paid", paymentMethod: "visa" },
+  { id: 3, number: "MKT-2026-0010", userId: 5, userName: "Layla Ibrahim", email: "layla@example.ae", date: "2026-07-01", dueDate: "2026-07-15", items: makeItems(SEED_PLANS[1], "monthly"), status: "paid", paymentMethod: "apple_pay" },
+  { id: 4, number: "MKT-2026-0009", userId: 8, userName: "Tech Gadgets Store", email: "sales@techgadgets.ae", buyerTrn: "100765432109876", date: "2026-06-30", dueDate: "2026-07-14", items: makeItems(SEED_PLANS[2], "annual"), status: "pending", paymentMethod: undefined },
+  { id: 5, number: "MKT-2026-0008", userId: 6, userName: "Gulf Auto Trade", email: "ops@gulfauto.ae", date: "2026-07-01", dueDate: "2026-07-08", items: makeItems(SEED_PLANS[1], "monthly"), status: "pending", paymentMethod: undefined },
+  { id: 6, number: "MKT-2026-0007", userId: 7, userName: "Fatima Al Zaabi", email: "fatima.z@example.ae", date: "2026-06-01", dueDate: "2026-06-15", items: makeItems(SEED_PLANS[1], "monthly"), status: "overdue", paymentMethod: undefined },
+  { id: 7, number: "MKT-2026-0006", userId: 3, userName: "Premium Motors LLC", email: "sales@premiummotors.ae", buyerTrn: "100876543210001", date: "2026-06-01", dueDate: "2026-06-30", items: makeItems(SEED_PLANS[3], "annual"), status: "paid", paymentMethod: "bank_transfer" },
 ];
 
 const PAYMENTS: Payment[] = [
@@ -212,11 +188,19 @@ export function FinancialModule() {
   const [invoices, setInvoices] = useState(INVOICES);
   const [payments, setPayments] = useState(PAYMENTS);
   const [payouts, setPayouts] = useState(PAYOUTS);
-  const [plans, setPlans] = useState(PLANS);
+  const [plans, setPlans] = useState<Plan[]>(() => listPlans());
   const [viewInvoice, setViewInvoice] = useState<Invoice | null>(null);
-  const [showPlanModal, setShowPlanModal] = useState(false);
-  const [editPlan, setEditPlan] = useState<Plan | null>(null);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
+
+  useEffect(() => subscribePlans(() => setPlans(listPlans())), []);
+
+  const persistPlans = (next: Plan[]) => {
+    const saved = savePlans(next);
+    setPlans(saved);
+    for (const p of saved) {
+      authApi.syncAccountsForPlan(p.id);
+    }
+  };
 
   const totalRevenue = payments.filter((p) => p.status === "successful").reduce((s, p) => s + p.amount, 0);
   const totalVatCollected = payments.filter((p) => p.status === "successful").reduce((s, p) => s + p.vatAmount, 0);
@@ -271,7 +255,7 @@ export function FinancialModule() {
 
       {/* Content */}
       {activeTab === "overview" && <FinancialOverview totalRevenue={totalRevenue} totalVat={totalVatCollected} mrr={mrr} arr={arr} payments={payments} subscriptions={subscriptions} />}
-      {activeTab === "plans" && <PlansManager plans={plans} onSave={setPlans} billingCycle={billingCycle} onCycleChange={setBillingCycle} />}
+      {activeTab === "plans" && <PlansManager plans={plans} onSave={persistPlans} billingCycle={billingCycle} onCycleChange={setBillingCycle} />}
       {activeTab === "subscriptions" && <SubscriptionsManager subscriptions={subscriptions} plans={plans} onChange={setSubscriptions} />}
       {activeTab === "invoices" && <InvoicesManager invoices={invoices} onView={setViewInvoice} plans={plans} />}
       {activeTab === "payments" && <PaymentsManager payments={payments} onChange={setPayments} />}
@@ -441,10 +425,7 @@ function PlansManager({ plans, onSave, billingCycle, onCycleChange }: {
             </button>
           ))}
         </div>
-        <button onClick={() => setNewModal(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 transition">
-          <Plus className="size-3.5" /> New Plan
-        </button>
+        <p className="text-xs text-slate-500">Edit a plan to update ads limits, Includes, and the comparison matrix</p>
       </div>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -514,16 +495,7 @@ function PlansManager({ plans, onSave, billingCycle, onCycleChange }: {
               </tr>
             </thead>
             <tbody>
-              {[
-                { label: "Max Ads/Month", values: ["5", "20", "100", "Unlimited"] },
-                { label: "Featured Badge", values: [false, true, true, true] },
-                { label: "Priority Search", values: [false, true, true, true] },
-                { label: "Analytics", values: [false, false, true, true] },
-                { label: "Account Manager", values: [false, false, false, true] },
-                { label: "API Access", values: [false, false, false, true] },
-                { label: "VAT Support", values: [false, false, false, true] },
-                { label: "Price (Monthly)", values: ["Free", "AED 99", "AED 299", "AED 999"] },
-              ].map((row) => (
+              {buildPlanComparisonMatrix(plans).map((row) => (
                 <tr key={row.label} className="border-t border-slate-100 dark:border-slate-800">
                   <td className="px-4 py-2.5 font-medium text-slate-700 dark:text-slate-300">{row.label}</td>
                   {row.values.map((v, i) => (
@@ -548,13 +520,13 @@ function PlansManager({ plans, onSave, billingCycle, onCycleChange }: {
           plan={editModal}
           onSave={(updated) => {
             if (editModal) {
-              onSave(plans.map((p) => (p.id === updated.id ? updated : p)));
+              onSave(plans.map((p) => (p.id === updated.id ? { ...p, ...updated, id: p.id, capabilities: p.capabilities } : p)));
+              toast.success("Plan updated — comparison matrix & subscriber quotas refreshed");
             } else {
-              onSave([...plans, { ...updated, id: `plan-${Date.now()}` }]);
+              toast.error("Custom plans are not supported yet — edit Free/Starter/Pro/Enterprise");
             }
             setEditModal(null);
             setNewModal(false);
-            toast.success(editModal ? "Plan updated" : "Plan created");
           }}
           onClose={() => { setEditModal(null); setNewModal(false); }}
         />
@@ -565,10 +537,26 @@ function PlansManager({ plans, onSave, billingCycle, onCycleChange }: {
 
 function PlanModal({ plan, onSave, onClose }: { plan: Plan | null; onSave: (p: Plan) => void; onClose: () => void }) {
   const [form, setForm] = useState<Plan>(plan || {
-    id: "", name: "", monthlyPrice: 0, annualPrice: 0,
-    maxAds: 10, highlight: false, color: "blue", badge: "",
+    id: "starter",
+    name: "",
+    monthlyPrice: 0,
+    annualPrice: 0,
+    maxAds: 10,
+    highlight: false,
+    color: "blue",
+    badge: "",
     features: [""],
+    capabilities: listPlans()[1].capabilities,
   });
+
+  const setMaxAds = (maxAds: number) => {
+    setForm({
+      ...form,
+      maxAds,
+      features: syncAdsFeatureLine(form.features, maxAds),
+    });
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 w-full max-w-lg p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -577,19 +565,31 @@ function PlanModal({ plan, onSave, onClose }: { plan: Plan | null; onSave: (p: P
           <button onClick={onClose}><X className="size-5 text-slate-400" /></button>
         </div>
         <div className="space-y-3">
-          {[
-            { label: "Plan Name", key: "name" as const, type: "text" },
-            { label: "Monthly Price (AED incl. VAT)", key: "monthlyPrice" as const, type: "number" },
-            { label: "Annual Price (AED incl. VAT)", key: "annualPrice" as const, type: "number" },
-            { label: "Max Ads / Month", key: "maxAds" as const, type: "number" },
-          ].map((f) => (
-            <div key={f.key}>
-              <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">{f.label}</label>
-              <input type={f.type} value={String(form[f.key])}
-                onChange={(e) => setForm({ ...form, [f.key]: f.type === "number" ? Number(e.target.value) : e.target.value })}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none focus:border-blue-500" />
-            </div>
-          ))}
+          <div>
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">Plan Name</label>
+            <input type="text" value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none focus:border-blue-500" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">Monthly Price (AED incl. VAT)</label>
+            <input type="number" value={form.monthlyPrice}
+              onChange={(e) => setForm({ ...form, monthlyPrice: Number(e.target.value) })}
+              className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none focus:border-blue-500" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">Annual Price (AED incl. VAT)</label>
+            <input type="number" value={form.annualPrice}
+              onChange={(e) => setForm({ ...form, annualPrice: Number(e.target.value) })}
+              className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none focus:border-blue-500" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">Max Ads / Month</label>
+            <input type="number" value={form.maxAds}
+              onChange={(e) => setMaxAds(Number(e.target.value))}
+              className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none focus:border-blue-500" />
+            <p className="text-[11px] text-slate-500 mt-1">Updates Includes + Comparison Matrix. Use 99999 for unlimited.</p>
+          </div>
           <div>
             <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">Badge (optional)</label>
             <input value={form.badge || ""} onChange={(e) => setForm({ ...form, badge: e.target.value })}
@@ -597,8 +597,8 @@ function PlanModal({ plan, onSave, onClose }: { plan: Plan | null; onSave: (p: P
               className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none focus:border-blue-500" />
           </div>
           <div>
-            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">Features (one per line)</label>
-            <textarea rows={4} value={form.features.join("\n")}
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">Includes (one per line)</label>
+            <textarea rows={5} value={form.features.join("\n")}
               onChange={(e) => setForm({ ...form, features: e.target.value.split("\n").filter(Boolean) })}
               className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none focus:border-blue-500 resize-none" />
           </div>
@@ -609,7 +609,10 @@ function PlanModal({ plan, onSave, onClose }: { plan: Plan | null; onSave: (p: P
             </label>
           </div>
           <div className="flex gap-2 pt-2">
-            <button onClick={() => onSave(form)}
+            <button onClick={() => onSave({
+              ...form,
+              features: syncAdsFeatureLine(form.features, form.maxAds),
+            })}
               className="flex-1 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition">
               {plan ? "Save Changes" : "Create Plan"}
             </button>

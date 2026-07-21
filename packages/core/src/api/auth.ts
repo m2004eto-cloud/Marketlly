@@ -8,6 +8,7 @@ import {
   planRank,
   refreshSubscriptionStatus,
   renewSubscriptionPeriod,
+  SEARCH_RANK_SCORE,
   type BillingCycle,
   type PlanId,
   type UserSubscription,
@@ -101,15 +102,31 @@ function withPlan(
     periodStart?: string;
   },
 ): AuthAccount {
-  const plan = getPlan(account.planId);
   const cycle = account.billingCycle || "monthly";
   const start = account.periodStart || account.createdAt;
-  const basePerms = account.permissions || permissionsForRole(account.role);
   return {
     ...account,
-    permissions: { ...basePerms, maxAdsPerMonth: plan.maxAds },
+    permissions: permissionsFromPlan(account.role, account.planId, account.permissions),
     subscription: buildSubscription(account.planId, cycle, start, 0),
   };
+}
+
+/** Re-apply plan entitlements to every account on a given plan (after admin edits). */
+export function syncAccountsForPlan(planId: PlanId): number {
+  const accounts = loadAccounts();
+  let n = 0;
+  for (let i = 0; i < accounts.length; i++) {
+    const sub = accounts[i].subscription;
+    if (!sub || sub.planId !== planId) continue;
+    accounts[i] = {
+      ...accounts[i],
+      permissions: permissionsFromPlan(accounts[i].role, planId, accounts[i].permissions),
+    };
+    n++;
+    syncSessionForAccount(accounts[i]);
+  }
+  if (n > 0) saveAccounts(accounts);
+  return n;
 }
 
 function defaultAccounts(): AuthAccount[] {
@@ -321,10 +338,17 @@ function mergeMissingSeeds(stored: AuthAccount[]): AuthAccount[] {
       next = {
         ...next,
         subscription: buildSubscription(planId, "monthly", next.createdAt || new Date().toISOString().slice(0, 10)),
-        permissions: {
-          ...next.permissions,
-          maxAdsPerMonth: getPlan(planId).maxAds,
-        },
+        permissions: permissionsFromPlan(next.role, planId, next.permissions),
+      };
+      changed = true;
+    } else if (
+      !("maxPhotosPerAd" in next.permissions) ||
+      !("searchRankScore" in next.permissions) ||
+      !("canViewAnalytics" in next.permissions)
+    ) {
+      next = {
+        ...next,
+        permissions: permissionsFromPlan(next.role, next.subscription.planId, next.permissions),
       };
       changed = true;
     } else {
@@ -409,12 +433,34 @@ function ensureSubscription(account: AuthAccount): UserSubscription {
   return buildSubscription(defaultPlanForRole(account.role), "monthly", account.createdAt);
 }
 
-function applyPlanPermissions(account: AuthAccount, planId: PlanId): FrontendPermissions {
+/** Map subscription plan Includes → runtime permissions. */
+export function permissionsFromPlan(
+  role: UserRole,
+  planId: PlanId,
+  existing?: Partial<FrontendPermissions>,
+): FrontendPermissions {
   const plan = getPlan(planId);
-  const base = account.banned
-    ? { ...BANNED_PERMISSIONS }
-    : normalizePermissions(account.role, account.permissions);
-  return { ...base, maxAdsPerMonth: plan.maxAds };
+  const caps = plan.capabilities;
+  const base = normalizePermissions(role, existing);
+  const featured = caps.featuredBadge || caps.homepageSlots > 0;
+  return {
+    ...base,
+    maxAdsPerMonth: plan.maxAds,
+    maxPhotosPerAd: caps.maxPhotos,
+    canFeatureListings: featured || base.canFeatureListings,
+    showVerifiedBadge: caps.featuredBadge || base.showVerifiedBadge,
+    canViewAnalytics: caps.analytics,
+    dedicatedAccountPage: caps.dedicatedAccountPage || caps.brandedDealerPage,
+    searchRankScore: SEARCH_RANK_SCORE[caps.searchRank],
+    homepageSlots: caps.homepageSlots,
+    // Dealers keep bulk tools; Pro+ analytics is plan-gated above
+    canBulkManageAds: role === "dealer" ? true : base.canBulkManageAds,
+  };
+}
+
+function applyPlanPermissions(account: AuthAccount, planId: PlanId): FrontendPermissions {
+  if (account.banned) return { ...BANNED_PERMISSIONS };
+  return permissionsFromPlan(account.role, planId, account.permissions);
 }
 
 function toSession(account: AuthAccount): SessionUser {
@@ -510,12 +556,8 @@ export async function signup(input: {
       return fail("An account with this email already exists. Please sign in.");
     }
     const today = new Date().toISOString().slice(0, 10);
-    const plan = getPlan(input.planId);
     const cycle = input.billingCycle || "monthly";
-    const permissions = {
-      ...permissionsForRole(input.role),
-      maxAdsPerMonth: plan.maxAds,
-    };
+    const permissions = permissionsFromPlan(input.role, input.planId);
     const account: AuthAccount = {
       id: `${input.role}-${Date.now()}`,
       name: input.name.trim(),
@@ -603,7 +645,6 @@ export async function adminCreateAccount(
 
     const today = new Date().toISOString().slice(0, 10);
     const planId = input.planId || defaultPlanForRole(input.role);
-    const plan = getPlan(planId);
     const account: AuthAccount = {
       id: `${input.role}-${Date.now()}`,
       name: input.name.trim(),
@@ -620,7 +661,7 @@ export async function adminCreateAccount(
       kycStatus: defaultKycForRole(input.role, false),
       ads: 0,
       lastActive: today,
-      permissions: { ...permissionsForRole(input.role), maxAdsPerMonth: plan.maxAds },
+      permissions: permissionsFromPlan(input.role, planId),
       subscription: buildSubscription(planId, input.billingCycle || "monthly", today, 0),
       createdAt: today,
     };
@@ -894,14 +935,10 @@ export async function upgradeSubscription(input: {
 
     const today = new Date().toISOString().slice(0, 10);
     const cycle = input.billingCycle || current.billingCycle || "monthly";
-    const plan = getPlan(input.planId);
     const updated: AuthAccount = {
       ...accounts[idx],
       subscription: buildSubscription(input.planId, cycle, today, 0),
-      permissions: {
-        ...accounts[idx].permissions,
-        maxAdsPerMonth: plan.maxAds,
-      },
+      permissions: permissionsFromPlan(accounts[idx].role, input.planId, accounts[idx].permissions),
     };
     accounts[idx] = updated;
     saveAccounts(accounts);
@@ -941,14 +978,10 @@ export async function renewSubscription(
       },
       today,
     );
-    const plan = getPlan(nextSub.planId);
     const updated: AuthAccount = {
       ...accounts[idx],
       subscription: nextSub,
-      permissions: {
-        ...accounts[idx].permissions,
-        maxAdsPerMonth: plan.maxAds,
-      },
+      permissions: permissionsFromPlan(accounts[idx].role, nextSub.planId, accounts[idx].permissions),
     };
     accounts[idx] = updated;
     saveAccounts(accounts);

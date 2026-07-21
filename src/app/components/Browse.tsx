@@ -316,7 +316,14 @@ export function Browse({ initial, onBack, onOpen }: Props) {
     if (inspectedOnly) list = list.filter((l) => l.verified);
     if (sort === "priceLow") list.sort((a, b) => a.price - b.price);
     else if (sort === "priceHigh") list.sort((a, b) => b.price - a.price);
-    else list.sort((a, b) => a.date - b.date);
+    else {
+      // Premium / priority search rank from seller plan, then newest
+      list.sort((a, b) => {
+        const rankDiff = (b.searchRank ?? 0) - (a.searchRank ?? 0);
+        if (rankDiff !== 0) return rankDiff;
+        return b.date - a.date;
+      });
+    }
     return list;
   }, [listings, min, max, sort, inspectedOnly, m.val]);
 
@@ -594,6 +601,11 @@ export function Browse({ initial, onBack, onOpen }: Props) {
                       <div className="relative aspect-[4/3] overflow-hidden">
                         <ImageWithFallback src={l.img} alt={l.title} className="size-full object-cover" />
                         <span className="absolute top-3 start-3 px-2 py-1 rounded-md bg-white/95 dark:bg-slate-900/95 text-xs">{t(`nav.${l.category}`)}</span>
+                        {l.featured && (
+                          <span className="absolute top-3 end-3 px-2 py-1 rounded-md bg-amber-500 text-white text-xs font-semibold">
+                            Featured
+                          </span>
+                        )}
                         {l.verified && (
                           <span className="absolute bottom-3 start-3 inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500 text-white text-xs">
                             <Shield className="size-3" /> {t("featured.verified")}

@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, RefreshCw, Sparkles, Zap } from "lucide-react";
 import {
-  SUBSCRIPTION_PLANS,
   getPlan,
   isPaidPlan,
+  listPlans,
   planPrice,
+  subscribePlans,
   type BillingCycle,
   type PlanId,
   type SubscriptionPlan,
@@ -59,11 +60,14 @@ export function PlanPicker({
   minPlanId,
   title = "Choose a subscription plan",
 }: PickerProps) {
-  const minRank = minPlanId ? SUBSCRIPTION_PLANS.findIndex((p) => p.id === minPlanId) : -1;
-  const plans = SUBSCRIPTION_PLANS.filter((p) => {
+  const [catalog, setCatalog] = useState(() => listPlans());
+  useEffect(() => subscribePlans(() => setCatalog(listPlans())), []);
+
+  const minRank = minPlanId ? catalog.findIndex((p) => p.id === minPlanId) : -1;
+  const plans = catalog.filter((p) => {
     if (excludeFree && p.id === "free") return false;
     if (minPlanId) {
-      const rank = SUBSCRIPTION_PLANS.findIndex((x) => x.id === p.id);
+      const rank = catalog.findIndex((x) => x.id === p.id);
       return rank > minRank;
     }
     return true;
@@ -154,6 +158,14 @@ function PlanCard({
       <p className="text-xs text-slate-500 mt-1">
         {plan.maxAds >= 99999 ? "Unlimited ads" : `${plan.maxAds} ads / period`}
       </p>
+      <ul className="mt-2 space-y-0.5">
+        {plan.features.slice(0, 4).map((f) => (
+          <li key={f} className="text-[11px] text-slate-600 dark:text-slate-400 flex items-start gap-1">
+            <Check className="size-3 text-emerald-500 shrink-0 mt-0.5" />
+            <span>{f}</span>
+          </li>
+        ))}
+      </ul>
       {recommended && (
         <p className="text-[10px] text-blue-600 mt-1 flex items-center gap-1">
           <Sparkles className="size-3" /> Recommended for you
@@ -190,22 +202,25 @@ export function SubscriptionManager({
   onRenew,
   onClose,
 }: ManageProps) {
+  const [catalog, setCatalog] = useState(() => listPlans());
+  useEffect(() => subscribePlans(() => setCatalog(listPlans())), []);
+
   const current = getPlan(currentPlanId);
-  const higherExists = SUBSCRIPTION_PLANS.some(
+  const higherExists = catalog.some(
     (p) =>
-      SUBSCRIPTION_PLANS.findIndex((x) => x.id === p.id) >
-      SUBSCRIPTION_PLANS.findIndex((x) => x.id === currentPlanId),
+      catalog.findIndex((x) => x.id === p.id) >
+      catalog.findIndex((x) => x.id === currentPlanId),
   );
   const [mode, setMode] = useState<"upgrade" | "renew">(
     !canRenew || currentPlanId === "free" ? "upgrade" : higherExists ? "upgrade" : "renew",
   );
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const defaultUpgrade =
-    (SUBSCRIPTION_PLANS.find(
+    (catalog.find(
       (p) =>
         p.id !== "free" &&
-        SUBSCRIPTION_PLANS.findIndex((x) => x.id === p.id) >
-          SUBSCRIPTION_PLANS.findIndex((x) => x.id === currentPlanId),
+        catalog.findIndex((x) => x.id === p.id) >
+          catalog.findIndex((x) => x.id === currentPlanId),
     )?.id as PlanId | undefined) || "starter";
   const [selectedPlanId, setSelectedPlanId] = useState<PlanId>(defaultUpgrade);
 
