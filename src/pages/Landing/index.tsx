@@ -56,6 +56,10 @@ export function LandingPage() {
       navigate("/sitemap");
       return;
     }
+    if (p === "legal") {
+      navigate(`/legal/${ps.doc || "terms"}`);
+      return;
+    }
     if (p === "mobile-android") {
       navigate("/preview/android");
       return;

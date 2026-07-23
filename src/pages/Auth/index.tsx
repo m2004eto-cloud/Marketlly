@@ -19,6 +19,7 @@ export function AuthPage() {
   return (
     <Auth
       onBack={() => navigate("/")}
+      onOpenLegal={(doc) => navigate(`/legal/${doc}`)}
       onSignIn={async (input) => {
         const res = await signIn(input);
         if (res.ok) goAfterAuth(res.role);

@@ -15,16 +15,7 @@ type AuthContextValue = {
   loading: boolean;
   can: (key: keyof FrontendPermissions) => boolean;
   signIn: (input: { email: string; password: string }) => Promise<AuthResult>;
-  signUp: (input: {
-    email: string;
-    password: string;
-    name: string;
-    role: "customer" | "dealer";
-    planId: PlanId;
-    billingCycle?: BillingCycle;
-    tradeLicense?: string;
-    vatTrn?: string;
-  }) => Promise<AuthResult>;
+  signUp: (input: Parameters<typeof authApi.signup>[0]) => Promise<AuthResult>;
   upgradePlan: (input: { planId: PlanId; billingCycle?: BillingCycle }) => Promise<AuthResult>;
   renewPlan: (billingCycle?: BillingCycle) => Promise<AuthResult>;
   logout: () => Promise<void>;
@@ -58,16 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { ok: false, error: res.error };
   }, []);
 
-  const signUp = useCallback(async (input: {
-    email: string;
-    password: string;
-    name: string;
-    role: "customer" | "dealer";
-    planId: PlanId;
-    billingCycle?: BillingCycle;
-    tradeLicense?: string;
-    vatTrn?: string;
-  }): Promise<AuthResult> => {
+  const signUp = useCallback(async (input: Parameters<typeof authApi.signup>[0]): Promise<AuthResult> => {
     const res = await authApi.signup(input);
     if (res.ok) {
       setUser(res.data);

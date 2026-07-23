@@ -46,7 +46,32 @@ export type SessionUser = {
   subscription?: UserSubscription;
 };
 
-export type KycStatus = "none" | "pending" | "verified";
+export type KycStatus = "none" | "pending" | "verified" | "rejected";
+
+/** Dealer KYC profile collected at signup (UAE trade-licence based). */
+export type DealerKycProfile = {
+  companyLegalName: string;
+  tradeName: string;
+  tradeLicenseNumber: string;
+  licenseIssuingAuthority: string;
+  licenseExpiry: string;
+  vatTrn?: string;
+  authorizedSignatoryName: string;
+  emiratesIdOrPassport: string;
+  phone: string;
+  businessEmirate: string;
+  businessAddress: string;
+  declaredAccurate: boolean;
+  submittedAt: string;
+};
+
+export type LegalAcceptance = {
+  termsVersion: string;
+  termsAcceptedAt: string;
+  privacyAcceptedAt: string;
+  sellerPoliciesAcceptedAt?: string;
+  marketingConsent: boolean;
+};
 
 export type AuthAccount = {
   id: string;
@@ -63,6 +88,8 @@ export type AuthAccount = {
   location?: string;
   notes?: string;
   kycStatus?: KycStatus;
+  kyc?: DealerKycProfile;
+  legalAcceptance?: LegalAcceptance;
   ads?: number;
   lastActive?: string;
   subscription?: UserSubscription;

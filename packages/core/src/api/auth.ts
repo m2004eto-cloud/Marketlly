@@ -19,12 +19,17 @@ import {
   DEFAULT_CUSTOMER_PERMISSIONS,
   DEFAULT_DEALER_PERMISSIONS,
   type AuthAccount,
+  type DealerKycProfile,
   type FrontendPermissions,
   type KycStatus,
+  type LegalAcceptance,
   type PublicAccount,
   type SessionUser,
   type UserRole,
 } from "../types";
+
+/** Bump when Terms / Privacy / Seller Policies change materially. */
+export const LEGAL_TERMS_VERSION = "2026.07.1";
 
 const SESSION_KEY = "marketly_session_v1";
 const ACCOUNTS_KEY = "marketly_accounts_v1";
@@ -532,6 +537,10 @@ export async function login(input: {
   });
 }
 
+export type SignupKycInput = Omit<DealerKycProfile, "submittedAt" | "declaredAccurate"> & {
+  declaredAccurate: boolean;
+};
+
 /** Public signup — customer or dealer only (never admin). Requires a subscription plan. */
 export async function signup(input: {
   email: string;
@@ -540,7 +549,17 @@ export async function signup(input: {
   role: "customer" | "dealer";
   planId: PlanId;
   billingCycle?: BillingCycle;
+  /** Mandatory for all roles */
+  acceptTerms: boolean;
+  acceptPrivacy: boolean;
+  /** Mandatory for dealers */
+  acceptSellerPolicies?: boolean;
+  marketingConsent?: boolean;
+  /** Full KYC required for dealers */
+  kyc?: SignupKycInput;
+  /** @deprecated prefer kyc.tradeLicenseNumber */
   tradeLicense?: string;
+  /** @deprecated prefer kyc.vatTrn */
   vatTrn?: string;
 }): Promise<ApiResult<SessionUser>> {
   return withLatency(() => {
@@ -548,16 +567,86 @@ export async function signup(input: {
     if (!email || input.password.length < 6) return fail("Invalid credentials");
     if (input.name.trim().length < 2) return fail("Name is required");
     if (!input.planId || !getPlan(input.planId)) return fail("Please select a subscription plan");
-    if (input.role === "dealer" && !input.tradeLicense?.trim()) {
-      return fail("Trade License Number is required for dealers");
+    if (!input.acceptTerms || !input.acceptPrivacy) {
+      return fail("You must accept the Terms & Conditions and Privacy Policy to create an account");
     }
+
+    let kycProfile: DealerKycProfile | undefined;
+    let tradeLicense: string | undefined;
+    let vatTrn: string | undefined;
+    let phone: string | undefined;
+    let location = "UAE";
+
+    if (input.role === "dealer") {
+      if (!input.acceptSellerPolicies) {
+        return fail("Dealers must accept the Seller Policies & KYC Procedures");
+      }
+      const k = input.kyc;
+      if (!k) return fail("Dealer KYC form is required");
+      const required: Array<[keyof SignupKycInput, string]> = [
+        ["companyLegalName", "Company legal name"],
+        ["tradeName", "Trade name"],
+        ["tradeLicenseNumber", "Trade licence number"],
+        ["licenseIssuingAuthority", "Licence issuing authority"],
+        ["licenseExpiry", "Licence expiry date"],
+        ["authorizedSignatoryName", "Authorised signatory name"],
+        ["emiratesIdOrPassport", "Emirates ID or passport number"],
+        ["phone", "UAE mobile number"],
+        ["businessEmirate", "Business emirate"],
+        ["businessAddress", "Business address"],
+      ];
+      for (const [key, label] of required) {
+        const val = String(k[key] ?? "").trim();
+        if (!val) return fail(`${label} is required`);
+      }
+      if (!k.declaredAccurate) {
+        return fail("You must declare that KYC information is true and accurate");
+      }
+      const trn = (k.vatTrn || "").trim();
+      if (trn && !/^\d{15}$/.test(trn)) {
+        return fail("VAT TRN must be exactly 15 digits when provided");
+      }
+      const expiry = k.licenseExpiry.trim();
+      if (expiry && expiry < new Date().toISOString().slice(0, 10)) {
+        return fail("Trade licence appears expired — renew before registering as a Dealer");
+      }
+      const todayIso = new Date().toISOString();
+      kycProfile = {
+        companyLegalName: k.companyLegalName.trim(),
+        tradeName: k.tradeName.trim(),
+        tradeLicenseNumber: k.tradeLicenseNumber.trim(),
+        licenseIssuingAuthority: k.licenseIssuingAuthority.trim(),
+        licenseExpiry: expiry,
+        vatTrn: trn || undefined,
+        authorizedSignatoryName: k.authorizedSignatoryName.trim(),
+        emiratesIdOrPassport: k.emiratesIdOrPassport.trim(),
+        phone: k.phone.trim(),
+        businessEmirate: k.businessEmirate.trim(),
+        businessAddress: k.businessAddress.trim(),
+        declaredAccurate: true,
+        submittedAt: todayIso,
+      };
+      tradeLicense = kycProfile.tradeLicenseNumber;
+      vatTrn = kycProfile.vatTrn;
+      phone = kycProfile.phone;
+      location = kycProfile.businessEmirate;
+    }
+
     const accounts = loadAccounts();
     if (accounts.some((a) => a.email.toLowerCase() === email)) {
       return fail("An account with this email already exists. Please sign in.");
     }
     const today = new Date().toISOString().slice(0, 10);
+    const nowIso = new Date().toISOString();
     const cycle = input.billingCycle || "monthly";
     const permissions = permissionsFromPlan(input.role, input.planId);
+    const legalAcceptance: LegalAcceptance = {
+      termsVersion: LEGAL_TERMS_VERSION,
+      termsAcceptedAt: nowIso,
+      privacyAcceptedAt: nowIso,
+      sellerPoliciesAcceptedAt: input.role === "dealer" ? nowIso : undefined,
+      marketingConsent: Boolean(input.marketingConsent),
+    };
     const account: AuthAccount = {
       id: `${input.role}-${Date.now()}`,
       name: input.name.trim(),
@@ -566,12 +655,14 @@ export async function signup(input: {
       role: input.role,
       banned: false,
       verified: false,
-      tradeLicense: input.tradeLicense?.trim(),
-      vatTrn: input.vatTrn?.trim(),
-      phone: undefined,
-      location: "UAE",
-      notes: input.tradeLicense?.trim() ? `Trade License: ${input.tradeLicense.trim()}` : "",
-      kycStatus: defaultKycForRole(input.role, false),
+      tradeLicense,
+      vatTrn,
+      phone,
+      location,
+      notes: tradeLicense ? `Trade License: ${tradeLicense}` : "",
+      kycStatus: input.role === "dealer" ? "pending" : "none",
+      kyc: kycProfile,
+      legalAcceptance,
       ads: 0,
       lastActive: today,
       permissions,

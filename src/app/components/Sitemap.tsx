@@ -38,6 +38,9 @@ const LINKS: { group: string; items: { label: string; path: string }[] }[] = [
       { label: "About Us", path: "/about" },
       { label: "Contact Us", path: "/contact" },
       { label: "Help", path: "/help" },
+      { label: "Terms & Conditions", path: "/legal/terms" },
+      { label: "Privacy Policy", path: "/legal/privacy" },
+      { label: "Seller Policies & KYC", path: "/legal/seller-policies" },
     ],
   },
 ];

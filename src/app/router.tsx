@@ -16,6 +16,7 @@ import { AboutPage } from "../pages/About";
 import { ContactPage } from "../pages/Contact";
 import { HelpPage } from "../pages/Help";
 import { SitemapPage } from "../pages/Sitemap";
+import { LegalPage } from "../pages/Legal";
 
 function HashRedirect() {
   const navigate = useNavigate();
@@ -116,6 +117,7 @@ export function AppRoutes() {
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="/sitemap" element={<SitemapPage />} />
+          <Route path="/legal/:docId" element={<LegalPage />} />
           <Route path="/preview/android" element={<MobilePreviewPage platform="android" />} />
           <Route path="/preview/ios" element={<MobilePreviewPage platform="ios" />} />
           <Route element={<RequireAuth />}>

@@ -630,6 +630,21 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
                   </button>
                 </li>
                 <li>
+                  <button type="button" onClick={() => onNavigate("legal", { doc: "terms" })} className="hover:text-blue-600">
+                    Terms &amp; Conditions
+                  </button>
+                </li>
+                <li>
+                  <button type="button" onClick={() => onNavigate("legal", { doc: "privacy" })} className="hover:text-blue-600">
+                    Privacy Policy
+                  </button>
+                </li>
+                <li>
+                  <button type="button" onClick={() => onNavigate("legal", { doc: "seller-policies" })} className="hover:text-blue-600">
+                    Seller Policies &amp; KYC
+                  </button>
+                </li>
+                <li>
                   <button type="button" onClick={() => onNavigate("sitemap")} className="hover:text-blue-600">
                     {t("landing.sitemap")}
                   </button>
