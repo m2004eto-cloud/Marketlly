@@ -17,10 +17,15 @@ export const SEED_LISTINGS: Omit<Listing, "status">[] = [
 ];
 
 export function seededListings(): Listing[] {
-  return SEED_LISTINGS.map((l, i) => ({
-    ...l,
-    status: "approved" as const,
-    ownerId: `seed-${i + 1}`,
-    ownerName: "Marketly Dealer",
-  }));
+  return SEED_LISTINGS.map((l, i) => {
+    // Alternate between demo dealers so chat has real account counterparts
+    const dealer = i % 3 === 0
+      ? { ownerId: "dealer-2", ownerName: "Premium Motors LLC" }
+      : { ownerId: "dealer-1", ownerName: "Ahmed Al Mansoori" };
+    return {
+      ...l,
+      status: "approved" as const,
+      ...dealer,
+    };
+  });
 }

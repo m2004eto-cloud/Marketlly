@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Search, MapPin, Bell, BookmarkCheck, Heart, MessageCircle, UserCog, X,
   Car, Tag, ArrowRight, Smartphone, Gavel, Flame,
   ChevronDown, User, Globe, FileText, BadgeCheck, Calendar, Wrench, Bookmark, Settings, LogOut, ShieldCheck, Zap,
 } from "lucide-react";
-import { authApi, type BillingCycle, type PlanId } from "@marketly/core";
+import { authApi, messagesApi, type BillingCycle, type PlanId } from "@marketly/core";
 import { useAuction, getStatus, useCountdown } from "../AuctionContext";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { HeaderControls } from "./HeaderControls";
@@ -119,7 +119,18 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [showSubscription, setShowSubscription] = useState(false);
   const [subBusy, setSubBusy] = useState(false);
+  const [unreadChats, setUnreadChats] = useState(0);
   const quota = session && session.role !== "admin" ? authApi.getAdQuotaSync(session.email) : null;
+
+  useEffect(() => {
+    if (!session || !can("canMessage")) {
+      setUnreadChats(0);
+      return;
+    }
+    const refresh = () => setUnreadChats(messagesApi.getUnreadCountSync());
+    refresh();
+    return messagesApi.subscribeMessages(refresh);
+  }, [session, can]);
 
   const navCats = [
     { id: "motors", label: t("nav.motors"), badge: "" },
@@ -231,8 +242,13 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
             <button onClick={() => onNavigate("browse")} className="flex items-center gap-1 hover:text-slate-900 dark:hover:text-white">
               <Heart className="size-4" /> {t("nav.favorites")}
             </button>
-            <button onClick={() => toast(t("nav.chats"))} className="flex items-center gap-1 hover:text-slate-900 dark:hover:text-white">
+            <button onClick={() => onNavigate("chats")} className="relative flex items-center gap-1 hover:text-slate-900 dark:hover:text-white">
               <MessageCircle className="size-4" /> {t("nav.chats")}
+              {unreadChats > 0 && (
+                <span className="absolute -top-1.5 -end-2 min-w-[1.1rem] h-4 px-1 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">
+                  {unreadChats > 9 ? "9+" : unreadChats}
+                </span>
+              )}
             </button>
             {user ? (
               <div
@@ -301,7 +317,14 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
                       {profileMenu.map((it) => (
                         <button
                           key={it.label}
-                          onClick={() => { setProfileOpen(false); toast(it.label); }}
+                          onClick={() => {
+                            setProfileOpen(false);
+                            if (it.label === t("nav.chats")) {
+                              onNavigate("chats");
+                              return;
+                            }
+                            toast(it.label);
+                          }}
                           className="w-full flex items-center gap-3 px-4 py-2.5 text-start hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 last:border-0"
                         >
                           <it.icon className="size-4 text-slate-500" />

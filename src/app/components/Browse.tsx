@@ -10,6 +10,8 @@ import { toast } from "sonner";
 import { HeaderControls } from "./HeaderControls";
 import { Editable } from "./Editable";
 import { Banners } from "./Banners";
+import { useNavigate } from "react-router";
+import { startListingChat } from "../chat";
 
 type Props = {
   initial: { q?: string; location?: string; category?: string; make?: string; model?: string };
@@ -258,8 +260,9 @@ function ColorGroup({ items, k, has, toggle }: { items: { name: string; hex: str
 
 export function Browse({ initial, onBack, onOpen }: Props) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { favorites, toggleFavorite } = useApp();
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const [q, setQ] = useState(initial.q || "");
   const cat = initial.category || "";
   const [city, setCity] = useState(initial.location || "");
@@ -629,7 +632,13 @@ export function Browse({ initial, onBack, onOpen }: Props) {
                           <Heart className={`size-4 ${fav ? "fill-current" : ""}`} />
                         </button>
                         <button
-                          onClick={() => toast.success(t("browse.chat"))}
+                          onClick={() =>
+                            void startListingChat(l.id, {
+                              isSignedIn: !!user,
+                              canMessage: can("canMessage"),
+                              navigate,
+                            })
+                          }
                           aria-label="Chat with seller"
                           className="size-9 rounded-full border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 hover:text-emerald-600"
                         >

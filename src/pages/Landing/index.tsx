@@ -36,6 +36,10 @@ export function LandingPage() {
       navigate("/admin");
       return;
     }
+    if (p === "chats") {
+      navigate("/chats");
+      return;
+    }
     if (p === "mobile-android") {
       navigate("/preview/android");
       return;

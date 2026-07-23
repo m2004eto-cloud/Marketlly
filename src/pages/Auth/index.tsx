@@ -1,15 +1,18 @@
-import { useNavigate, useLocation } from "react-router";
+import { useNavigate, useLocation, useSearchParams } from "react-router";
 import { Auth } from "../../app/components/Auth";
 import { useAuth } from "../../app/AuthContext";
 
 export function AuthPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [sp] = useSearchParams();
   const { signIn, signUp } = useAuth();
-  const from = (location.state as { from?: string } | null)?.from || "/";
+  const fromState = (location.state as { from?: string } | null)?.from;
+  const fromQuery = sp.get("next");
+  const from = fromQuery || fromState || "/";
 
   const goAfterAuth = (role?: string) => {
-    if (role === "admin") navigate("/admin");
+    if (role === "admin" && (!fromQuery || from === "/")) navigate("/admin");
     else navigate(from === "/auth" ? "/" : from);
   };
 

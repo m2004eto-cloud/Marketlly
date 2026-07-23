@@ -9,6 +9,9 @@ import { useAuction, getStatus, useCountdown, type Bid } from "../AuctionContext
 import { HeaderControls } from "./HeaderControls";
 import { formatCurrency } from "../utils";
 import { toast } from "sonner";
+import { useNavigate } from "react-router";
+import { useAuth } from "../AuthContext";
+import { startAuctionChat } from "../chat";
 
 type User = { name: string; role: "customer" | "dealer" | "admin" } | null;
 type Props = {
@@ -74,6 +77,8 @@ function BidRow({ bid, index, total }: { bid: Bid; index: number; total: number 
 
 export function AuctionDetail({ id, onBack, user, onLogin, canBid = true, canBrowse = true }: Props) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { can } = useAuth();
   const { auctions, placeBid } = useAuction();
   const auction = useMemo(() => auctions.find((a) => a.id === id), [auctions, id]);
   const [imgIdx, setImgIdx] = useState(0);
@@ -283,7 +288,25 @@ export function AuctionDetail({ id, onBack, user, onLogin, canBid = true, canBro
                         <p className="font-bold text-lg mt-0.5 text-emerald-600">94%</p>
                       </div>
                     </div>
-                    <button onClick={() => toast(t("auction.messageSeller"))} className="w-full py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+                    <button
+                      onClick={() =>
+                        void startAuctionChat(
+                          {
+                            auctionId: auction.id,
+                            title: auction.title,
+                            img: auction.images?.[0],
+                            sellerId: auction.sellerId,
+                            sellerName: auction.sellerName,
+                          },
+                          {
+                            isSignedIn: !!user,
+                            canMessage: can("canMessage"),
+                            navigate,
+                          },
+                        )
+                      }
+                      className="w-full py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                    >
                       {t("auction.messageSeller")}
                     </button>
                   </div>

@@ -11,6 +11,7 @@ import { AdminPage } from "../pages/Admin";
 import { AuctionListPage } from "../pages/AuctionList";
 import { AuctionDetailPage } from "../pages/AuctionDetail";
 import { MobilePreviewPage } from "../pages/MobilePreview";
+import { ChatsPage } from "../pages/Chats";
 
 function HashRedirect() {
   const navigate = useNavigate();
@@ -25,6 +26,7 @@ function HashRedirect() {
       browse: "/browse",
       detail: "/listing",
       admin: "/admin",
+      chats: "/chats",
       auction: "/auctions",
       "auction-detail": "/auctions",
       "mobile-android": "/preview/android",
@@ -110,6 +112,8 @@ export function AppRoutes() {
           <Route path="/preview/ios" element={<MobilePreviewPage platform="ios" />} />
           <Route element={<RequireAuth />}>
             <Route path="/post" element={<PostAdPage />} />
+            <Route path="/chats" element={<ChatsPage />} />
+            <Route path="/chats/:id" element={<ChatsPage />} />
           </Route>
           <Route element={<RequireAdmin />}>
             <Route path="/admin/*" element={<AdminPage />} />

@@ -6,8 +6,9 @@ import {
   Calculator, ChevronRight as ChevronRightIcon, Building2,
 } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
-import { listingsApi, type Listing } from "@marketly/core";
+import { listingsApi, messagesApi, type Listing } from "@marketly/core";
 import { useApp } from "../AppContext";
+import { useAuth } from "../AuthContext";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { HeaderControls } from "./HeaderControls";
@@ -15,6 +16,8 @@ import { Editable } from "./Editable";
 import { Banners } from "./Banners";
 import { formatCurrency } from "../utils";
 import { useRecentlyViewed } from "../hooks";
+import { useNavigate } from "react-router";
+import { startListingChat } from "../chat";
 
 type Props = { id: number; onBack: () => void; onOpen?: (id: number) => void };
 
@@ -35,7 +38,9 @@ const safetyTips = [
 
 export function Detail({ id, onBack, onOpen }: Props) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { favorites, toggleFavorite } = useApp();
+  const { user, can } = useAuth();
   const [listing, setListing] = useState<Listing | null>(() => listingsApi.getAllListingsSync().find((l) => l.id === id) || null);
   const [similar, setSimilar] = useState<Listing[]>([]);
   const fav = listing ? favorites.includes(listing.id) : false;
@@ -43,6 +48,15 @@ export function Detail({ id, onBack, onOpen }: Props) {
   const [showPhone, setShowPhone] = useState(false);
   const [tab, setTab] = useState<"overview" | "features" | "location">("overview");
   const { push: pushRecent } = useRecentlyViewed();
+  const seller = listing
+    ? messagesApi.resolveSellerAccount(listing.ownerId, listing.ownerName)
+    : null;
+  const sellerInitials = (seller?.name || "SE")
+    .split(/\s+/)
+    .map((p) => p[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   useEffect(() => {
     let alive = true;
@@ -306,35 +320,65 @@ export function Detail({ id, onBack, onOpen }: Props) {
         <aside className="space-y-3 lg:sticky lg:top-20 lg:self-start">
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-3">
             <div className="flex items-center gap-3">
-              <span className="size-12 rounded-full bg-gradient-to-br from-blue-600 to-violet-600 text-white flex items-center justify-center">
-                AM
+              <span className="size-12 rounded-full bg-gradient-to-br from-blue-600 to-violet-600 text-white flex items-center justify-center font-semibold">
+                {sellerInitials}
               </span>
               <div className="flex-1 min-w-0">
                 <p className="flex items-center gap-1 truncate">
-                  Ahmed Motors
-                  <BadgeCheck className="size-4 text-blue-600" />
+                  {seller?.name || listing?.ownerName || "Seller"}
+                  {seller?.verified && <BadgeCheck className="size-4 text-blue-600" />}
                 </p>
-                <p className="text-xs text-slate-500">Verified Dealer · Member since 2021</p>
+                <p className="text-xs text-slate-500">
+                  {seller?.verified ? "Verified seller" : "Seller"} · Marketly chat enabled
+                </p>
               </div>
             </div>
             <div className="grid grid-cols-3 text-center text-xs border-y border-slate-100 dark:border-slate-800 py-3">
-              <div><p className="text-slate-900 dark:text-slate-100">87</p><p className="text-slate-500">Listings</p></div>
+              <div><p className="text-slate-900 dark:text-slate-100">—</p><p className="text-slate-500">Listings</p></div>
               <div><p className="text-slate-900 dark:text-slate-100">4.8★</p><p className="text-slate-500">Rating</p></div>
               <div><p className="text-slate-900 dark:text-slate-100">~10m</p><p className="text-slate-500">Response</p></div>
             </div>
-            <button onClick={() => toast("Opening dealer profile")} className="w-full text-sm text-blue-600 hover:underline">
-              View all listings from this dealer →
+            <button
+              onClick={() => navigate(`/browse?q=${encodeURIComponent(seller?.name || "")}`)}
+              className="w-full text-sm text-blue-600 hover:underline"
+            >
+              View more from this seller →
             </button>
           </div>
 
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-2">
-            <button onClick={() => setShowPhone(true)} className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700">
-              <Phone className="size-4" /> {showPhone ? "+971 50 123 4567" : "Show phone number"}
+            <button
+              onClick={() => {
+                if (!can("canContactSellers") && user) {
+                  toast.error("Contacting sellers is disabled for your account");
+                  return;
+                }
+                setShowPhone(true);
+              }}
+              className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
+            >
+              <Phone className="size-4" />{" "}
+              {showPhone ? (seller?.phone || "+971 50 123 4567") : "Show phone number"}
             </button>
-            <button onClick={() => toast.success("WhatsApp opened")} className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#25D366] text-white hover:opacity-95">
+            <button
+              onClick={() => {
+                const phone = (seller?.phone || "+971501234567").replace(/\D/g, "");
+                window.open(`https://wa.me/${phone}`, "_blank", "noopener,noreferrer");
+              }}
+              className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#25D366] text-white hover:opacity-95"
+            >
               <MessageCircle className="size-4" /> WhatsApp
             </button>
-            <button onClick={() => toast("Opening chat…")} className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-slate-900 dark:bg-white dark:text-slate-900 text-white hover:opacity-90">
+            <button
+              onClick={() =>
+                void startListingChat(id, {
+                  isSignedIn: !!user,
+                  canMessage: can("canMessage"),
+                  navigate,
+                })
+              }
+              className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-slate-900 dark:bg-white dark:text-slate-900 text-white hover:opacity-90"
+            >
               <Mail className="size-4" /> {t("browse.chat")}
             </button>
             <button onClick={() => toast.success("Offer sent")} className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-blue-600 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/20">
