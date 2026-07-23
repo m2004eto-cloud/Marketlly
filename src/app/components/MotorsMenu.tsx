@@ -15,11 +15,23 @@ const leftItems = [
 
 const brandsByCat: Record<string, { col1: string[]; col2: string[] }> = {
   used: {
-    col1: ["Toyota", "Mercedes-Benz", "BMW", "Nissan", "Hyundai", "Porsche", "Ford", "Audi", "Kia", "Land Rover", "Jeep", "Chevrolet", "Mitsubishi", "Honda", "Volkswagen"],
-    col2: ["Jetour", "Dodge", "Rolls-Royce", "Bentley"],
+    col1: [
+      "Toyota", "Mercedes-Benz", "BMW", "Nissan", "Hyundai", "Porsche", "Ford", "Audi", "Kia",
+      "Land Rover", "Jeep", "Chevrolet", "Mitsubishi", "Honda", "Volkswagen", "Lexus",
+    ],
+    col2: [
+      "BYD", "Chery", "Geely", "GWM", "Haval", "Jetour", "Changan", "MG", "GAC", "Hongqi",
+      "Omoda", "JAECOO", "Tank", "XPeng", "Zeekr", "Dodge", "Rolls-Royce", "Bentley",
+    ],
   },
-  new: { col1: ["Toyota", "BMW", "Mercedes-Benz", "Audi", "Lexus"], col2: ["Tesla", "Genesis", "Porsche"] },
-  export: { col1: ["Toyota", "Nissan", "Lexus"], col2: ["Hyundai"] },
+  new: {
+    col1: ["Toyota", "BMW", "Mercedes-Benz", "Audi", "Lexus", "BYD", "Tesla", "Genesis"],
+    col2: ["Porsche", "Jetour", "Chery", "Geely", "GWM", "MG", "XPeng", "Zeekr"],
+  },
+  export: {
+    col1: ["Toyota", "Nissan", "Lexus", "Hyundai"],
+    col2: ["BYD", "Chery", "Geely", "MG"],
+  },
   rental: { col1: ["Daily", "Weekly", "Monthly"], col2: ["Long Term"] },
   moto: { col1: ["Harley-Davidson", "Ducati", "Yamaha"], col2: ["Honda", "BMW"] },
   parts: { col1: ["Tires", "Rims", "Audio"], col2: ["Lights", "Filters"] },

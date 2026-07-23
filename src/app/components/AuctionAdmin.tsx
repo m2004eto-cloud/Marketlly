@@ -7,6 +7,7 @@ import {
 import { useAuction, getStatus, type Auction, type NewAuctionDraft } from "../AuctionContext";
 import { formatCurrency } from "../utils";
 import { toast } from "sonner";
+import { listCarMakes, modelsForMake } from "../data/carMakeModels";
 
 type AdminUser = { name: string };
 type Props = { admin: AdminUser; onViewAuction: (id: string) => void };
@@ -149,8 +150,27 @@ function AuctionForm({ initial, onSubmit, onCancel, label }: {
   return (
     <div className="space-y-5">
       <div className="grid sm:grid-cols-2 gap-4">
-        <Field label={t("auction.formMake")}><input value={f.make || ""} onChange={(e) => set("make", e.target.value)} placeholder="e.g. Ferrari" className={cls} /></Field>
-        <Field label={t("auction.formModel")}><input value={f.model || ""} onChange={(e) => set("model", e.target.value)} placeholder="e.g. 488 GTB" className={cls} /></Field>
+        <Field label={t("auction.formMake")}>
+          <select
+            value={f.make || ""}
+            onChange={(e) => { set("make", e.target.value); set("model", ""); }}
+            className={cls + " appearance-none"}
+          >
+            <option value="">Select Make…</option>
+            {listCarMakes().map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </Field>
+        <Field label={t("auction.formModel")}>
+          <select
+            value={f.model || ""}
+            onChange={(e) => set("model", e.target.value)}
+            disabled={!f.make}
+            className={cls + " appearance-none disabled:opacity-50"}
+          >
+            <option value="">{f.make ? "Select Model…" : "Select Make first"}</option>
+            {modelsForMake(f.make || "").map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </Field>
         <Field label={t("auction.formYear")}><input type="number" value={f.year || ""} onChange={(e) => set("year", +e.target.value)} className={cls} /></Field>
         <Field label={t("auction.formMileage")}><input type="number" value={f.mileage || ""} onChange={(e) => set("mileage", +e.target.value)} className={cls} /></Field>
         <Field label={t("auction.formColour")}><input value={f.color || ""} onChange={(e) => set("color", e.target.value)} className={cls} /></Field>

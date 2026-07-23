@@ -7,6 +7,7 @@ import {
 import { useAuction, getStatus, useCountdown, type Auction, type AuctionStatus } from "../AuctionContext";
 import { HeaderControls } from "./HeaderControls";
 import { formatCurrency } from "../utils";
+import { listCarMakes } from "../data/carMakeModels";
 
 type Props = { onBack: () => void; onOpen: (id: string) => void };
 type FilterTab = "all" | "live" | "upcoming" | "ended";
@@ -199,7 +200,7 @@ export function AuctionList({ onBack, onOpen }: Props) {
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const allMakesLabel = t("auction.allMakes");
-  const MAKES = [allMakesLabel, "Ferrari", "Lamborghini", "Porsche", "Mercedes-Benz", "BMW", "McLaren", "Rolls-Royce", "Land Rover", "Bentley", "Audi"];
+  const MAKES = useMemo(() => [allMakesLabel, ...listCarMakes()], [allMakesLabel]);
 
   const liveCount = useMemo(() => auctions.filter((a) => getStatus(a) === "live").length, [auctions]);
 

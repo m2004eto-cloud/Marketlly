@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
+import { DEFAULT_MAKE_MODELS } from "./data/carMakeModels";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -67,47 +68,6 @@ type CatalogContextType = {
 };
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
-
-const DEFAULT_MAKE_MODELS: Record<string, string[]> = {
-  "Mercedes-Benz": ["A-Class", "B-Class", "C-Class", "E-Class", "S-Class", "CLA", "CLS", "GLA", "GLB", "GLC", "GLE", "GLS", "G-Class", "AMG GT", "EQS", "EQE", "Maybach S-Class", "SL"],
-  Toyota: ["Corolla", "Camry", "Land Cruiser", "Hilux", "Prado", "RAV4", "Yaris", "Fortuner", "Avalon", "Sequoia", "Highlander", "4Runner", "Tacoma", "Tundra", "Supra", "C-HR", "GR86"],
-  BMW: ["1 Series", "2 Series", "3 Series", "4 Series", "5 Series", "6 Series", "7 Series", "8 Series", "X1", "X2", "X3", "X4", "X5", "X6", "X7", "Z4", "M2", "M3", "M4", "M5", "M8", "iX", "i4", "i7"],
-  Nissan: ["Altima", "Maxima", "Patrol", "Pathfinder", "X-Trail", "Sunny", "Kicks", "Sentra", "Z", "GT-R", "Murano", "Armada", "Navara", "Juke", "Tiida", "370Z"],
-  "Land Rover": ["Defender", "Discovery", "Discovery Sport", "Range Rover", "Range Rover Sport", "Range Rover Velar", "Range Rover Evoque", "Freelander"],
-  Porsche: ["911", "718 Cayman", "718 Boxster", "Cayenne", "Macan", "Panamera", "Taycan"],
-  Lexus: ["IS", "ES", "LS", "UX", "NX", "RX", "GX", "LX", "LC", "RC", "RZ", "LFA"],
-  Honda: ["Civic", "Accord", "City", "CR-V", "HR-V", "Pilot", "Passport", "Odyssey", "Fit", "Jazz"],
-  Hyundai: ["Accent", "Elantra", "Sonata", "Tucson", "Santa Fe", "Creta", "Kona", "Palisade", "Ioniq 5", "Ioniq 6"],
-  Kia: ["Picanto", "Rio", "Cerato", "Sportage", "Sorento", "Telluride", "Carnival", "K5", "Stinger", "EV6"],
-  Audi: ["A3", "A4", "A5", "A6", "A7", "A8", "Q3", "Q5", "Q7", "Q8", "R8", "RS3", "RS5", "RS6", "e-tron"],
-  Volkswagen: ["Golf", "Passat", "Jetta", "Tiguan", "Touareg", "Polo", "Arteon", "ID.4"],
-  Ford: ["Fiesta", "Focus", "Mustang", "Mustang Mach-E", "Explorer", "Expedition", "F-150", "Ranger", "Transit"],
-  Chevrolet: ["Spark", "Cruze", "Malibu", "Camaro", "Corvette", "Trailblazer", "Equinox", "Tahoe", "Suburban", "Silverado", "Captiva"],
-  Tesla: ["Model S", "Model 3", "Model X", "Model Y", "Cybertruck", "Roadster"],
-  Jeep: ["Wrangler", "Cherokee", "Grand Cherokee", "Compass", "Renegade", "Gladiator"],
-  "Rolls-Royce": ["Phantom", "Ghost", "Wraith", "Dawn", "Cullinan", "Spectre"],
-  Lamborghini: ["Aventador", "Huracán", "Urus", "Revuelto"],
-  Ferrari: ["Roma", "SF90", "F8 Tributo", "Purosangue", "812 Superfast", "LaFerrari"],
-  Bentley: ["Continental GT", "Continental GTC", "Flying Spur", "Bentayga", "Mulsanne"],
-  Mazda: ["Mazda3", "Mazda6", "CX-5", "CX-9", "CX-90", "MX-5"],
-  Mitsubishi: ["Lancer", "Pajero", "Pajero Sport", "Outlander", "Eclipse Cross", "L200"],
-  Genesis: ["G70", "G80", "G90", "GV60", "GV70", "GV80"],
-  GMC: ["Yukon", "Sierra", "Terrain", "Acadia", "Hummer EV"],
-  Dodge: ["Charger", "Challenger", "Durango", "Ram 1500"],
-  Cadillac: ["CT4", "CT5", "XT4", "XT5", "XT6", "Escalade", "Lyriq"],
-  Volvo: ["S60", "S90", "XC40", "XC60", "XC90", "EX30", "EX90"],
-  Jaguar: ["XE", "XF", "F-Type", "F-Pace", "E-Pace", "I-Pace"],
-  Peugeot: ["208", "308", "2008", "3008", "5008"],
-  MG: ["MG3", "MG4", "MG5", "ZS", "HS", "Cyberster"],
-  Infiniti: ["Q50", "Q60", "QX50", "QX60", "QX80"],
-  Maserati: ["Ghibli", "Quattroporte", "Levante", "GranTurismo", "MC20", "Grecale"],
-  McLaren: ["570S", "720S", "750S", "Artura", "GT"],
-  "Aston Martin": ["DB11", "DB12", "Vantage", "DBS", "DBX"],
-  Polestar: ["2", "3", "4"],
-  Lucid: ["Air", "Gravity"],
-  Rivian: ["R1T", "R1S"],
-  Other: ["Other"],
-};
 
 const DEFAULT_MOTOR_FIELDS: MotorFieldCatalog = {
   regionalSpecs: ["GCC", "American", "Canadian", "European", "Japanese", "Korean", "Chinese", "Other"],
