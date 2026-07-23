@@ -121,6 +121,7 @@ const DEFAULT_COLORS: ColorOpt[] = [
 const DEFAULT_LOCATIONS = [
   "Dubai", "Abu Dhabi", "Sharjah", "Ajman", "Ras Al Khaimah", "Fujairah", "Umm Al Quwain",
   "Al Ain", "Khor Fakkan", "Dibba", "Kalba", "Dhaid",
+  "Egypt", "Bahrain", "Saudi Arabia", "Kuwait", "Oman", "Qatar",
 ];
 
 // ─── Context ──────────────────────────────────────────────────────────────────

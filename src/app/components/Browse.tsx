@@ -275,6 +275,12 @@ export function Browse({ initial, onBack, onOpen }: Props) {
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Keep location / search in sync when arriving from footer or URL changes
+  useEffect(() => {
+    setCity(initial.location || "");
+    if (initial.q !== undefined) setQ(initial.q || "");
+  }, [initial.location, initial.q]);
+
   useEffect(() => {
     let alive = true;
     setLoading(true);
@@ -385,7 +391,24 @@ export function Browse({ initial, onBack, onOpen }: Props) {
               <MapPin className="absolute start-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
               <select value={city} onChange={(e) => setCity(e.target.value)} className="w-full ps-9 pe-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none text-sm">
                 <option value="">All Locations</option>
-                <option>Dubai</option><option>Abu Dhabi</option><option>Sharjah</option><option>Ajman</option>
+                <optgroup label="UAE">
+                  <option>Dubai</option>
+                  <option>Abu Dhabi</option>
+                  <option>Sharjah</option>
+                  <option>Ajman</option>
+                  <option>Ras Al Khaimah</option>
+                  <option>Fujairah</option>
+                  <option>Umm Al Quwain</option>
+                  <option>Al Ain</option>
+                </optgroup>
+                <optgroup label="Other Countries">
+                  <option>Egypt</option>
+                  <option>Bahrain</option>
+                  <option>Saudi Arabia</option>
+                  <option>Kuwait</option>
+                  <option>Oman</option>
+                  <option>Qatar</option>
+                </optgroup>
               </select>
             </div>
           </Section>

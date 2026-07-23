@@ -3,7 +3,7 @@ import { seededListings } from "../mocks/seed";
 import { readJson, writeJson } from "../storage";
 import type { CreateListingInput, Listing, ListingFilters, ListingStatus } from "../types";
 
-const KEY = "marketly_listings_v1";
+const KEY = "marketly_listings_v2";
 const listeners = new Set<() => void>();
 
 function load(): Listing[] {

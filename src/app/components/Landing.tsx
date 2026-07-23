@@ -3,6 +3,7 @@ import {
   Search, MapPin, Bell, BookmarkCheck, Heart, MessageCircle, UserCog, X,
   Car, Tag, ArrowRight, Smartphone, Gavel, Flame,
   ChevronDown, User, Globe, FileText, BadgeCheck, Calendar, Wrench, Bookmark, Settings, LogOut, ShieldCheck, Zap,
+  Phone, Sparkles,
 } from "lucide-react";
 import { authApi, messagesApi, type BillingCycle, type PlanId } from "@marketly/core";
 import { useAuction, getStatus, useCountdown } from "../AuctionContext";
@@ -120,6 +121,22 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
   const [showSubscription, setShowSubscription] = useState(false);
   const [subBusy, setSubBusy] = useState(false);
   const [unreadChats, setUnreadChats] = useState(0);
+  const [comingSoonFor, setComingSoonFor] = useState<string | null>(null);
+  const [showCallUs, setShowCallUs] = useState(false);
+
+  const UAE_LOCATIONS = [
+    "Dubai",
+    "Abu Dhabi",
+    "Ras Al Khaimah",
+    "Sharjah",
+    "Fujairah",
+    "Ajman",
+    "Umm Al Quwain",
+    "Al Ain",
+  ];
+  const OTHER_COUNTRIES = ["Egypt", "Bahrain", "Saudi Arabia", "Kuwait", "Oman", "Qatar"];
+  const SOCIALS = ["Facebook", "X", "Youtube", "Instagram"];
+  const SUPPORT_PHONE = "+971 4 000 0000";
   const quota = session && session.role !== "admin" ? authApi.getAdQuotaSync(session.email) : null;
 
   useEffect(() => {
@@ -594,26 +611,103 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
         </div>
 
         <div className="bg-slate-50 dark:bg-slate-900">
-          <div className="max-w-7xl mx-auto px-4 py-10 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6 text-slate-600 dark:text-slate-300">
-            {[
-              { title: t("landing.company"), items: [t("landing.aboutUs"), t("landing.advertising"), t("landing.careers"), t("landing.legalHub"), t("landing.sitemap")] },
-              { title: "UAE", items: ["Dubai", "Abu Dhabi", "Ras Al Khaimah", "Sharjah", "Fujairah", "Ajman", "Umm Al Quwain", "Al Ain"] },
-              { title: t("landing.otherCountries"), items: ["Egypt", "Bahrain", "Saudi Arabia", "Kuwait", "Oman", "Qatar"] },
-              { title: t("landing.getSocial"), items: ["Facebook", "X", "Youtube", "Instagram"] },
-              { title: t("landing.support"), items: [t("landing.help"), t("landing.contactUs"), t("landing.callUs")] },
-              { title: t("landing.languages"), items: ["English", "العربية"] },
-            ].map((col) => (
-              <div key={col.title}>
-                <p className="text-slate-900 dark:text-slate-100 mb-3">{col.title}</p>
-                <ul className="space-y-2">
-                  {col.items.map((it) => (
-                    <li key={it}>
-                      <button onClick={() => toast(it)} className="hover:text-blue-600">{it}</button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+          <div className="max-w-7xl mx-auto px-4 py-10 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-6 text-slate-600 dark:text-slate-300">
+            <div>
+              <p className="text-slate-900 dark:text-slate-100 mb-3">{t("landing.company")}</p>
+              <ul className="space-y-2">
+                <li>
+                  <button type="button" onClick={() => onNavigate("about")} className="hover:text-blue-600">
+                    {t("landing.aboutUs")}
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate("contact", { reason: "advertising" })}
+                    className="hover:text-blue-600"
+                  >
+                    {t("landing.advertising")}
+                  </button>
+                </li>
+                <li>
+                  <button type="button" onClick={() => onNavigate("sitemap")} className="hover:text-blue-600">
+                    {t("landing.sitemap")}
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <p className="text-slate-900 dark:text-slate-100 mb-3">UAE</p>
+              <ul className="space-y-2">
+                {UAE_LOCATIONS.map((loc) => (
+                  <li key={loc}>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate("browse", { location: loc })}
+                      className="hover:text-blue-600"
+                    >
+                      {loc}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <p className="text-slate-900 dark:text-slate-100 mb-3">{t("landing.otherCountries")}</p>
+              <ul className="space-y-2">
+                {OTHER_COUNTRIES.map((country) => (
+                  <li key={country}>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate("browse", { location: country })}
+                      className="hover:text-blue-600"
+                    >
+                      {country}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <p className="text-slate-900 dark:text-slate-100 mb-3">{t("landing.getSocial")}</p>
+              <ul className="space-y-2">
+                {SOCIALS.map((social) => (
+                  <li key={social}>
+                    <button
+                      type="button"
+                      onClick={() => setComingSoonFor(social)}
+                      className="hover:text-blue-600"
+                    >
+                      {social}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <p className="text-slate-900 dark:text-slate-100 mb-3">{t("landing.support")}</p>
+              <ul className="space-y-2">
+                <li>
+                  <button type="button" onClick={() => onNavigate("help")} className="hover:text-blue-600">
+                    {t("landing.help")}
+                  </button>
+                </li>
+                <li>
+                  <button type="button" onClick={() => onNavigate("contact")} className="hover:text-blue-600">
+                    {t("landing.contactUs")}
+                  </button>
+                </li>
+                <li>
+                  <button type="button" onClick={() => setShowCallUs(true)} className="hover:text-blue-600">
+                    {t("landing.callUs")}
+                  </button>
+                </li>
+              </ul>
+            </div>
           </div>
           <div className="border-t border-slate-200 dark:border-slate-800">
             <div className="max-w-7xl mx-auto px-4 py-5 flex items-center justify-between">
@@ -623,6 +717,60 @@ export function Landing({ onNavigate, user, onLogout }: Props) {
           </div>
         </div>
       </footer>
+
+      {comingSoonFor && (
+        <div className="fixed inset-0 z-[80] bg-black/60 flex items-center justify-center p-4" onClick={() => setComingSoonFor(null)}>
+          <div
+            className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 w-full max-w-sm p-6 shadow-2xl text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="size-12 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 flex items-center justify-center mx-auto mb-3">
+              <Sparkles className="size-6" />
+            </div>
+            <h3 className="font-bold text-lg">Coming Soon</h3>
+            <p className="text-sm text-slate-500 mt-2">
+              Our {comingSoonFor} page is on the way. Follow Marketly updates for the official launch.
+            </p>
+            <button
+              type="button"
+              onClick={() => setComingSoonFor(null)}
+              className="mt-5 w-full py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showCallUs && (
+        <div className="fixed inset-0 z-[80] bg-black/60 flex items-center justify-center p-4" onClick={() => setShowCallUs(false)}>
+          <div
+            className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 w-full max-w-sm p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="size-12 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center mx-auto mb-3">
+              <Phone className="size-6" />
+            </div>
+            <h3 className="font-bold text-lg text-center">Call Us</h3>
+            <p className="text-sm text-slate-500 mt-2 text-center">
+              Speak with Marketly support — Sun–Thu, 9:00–18:00 GST.
+            </p>
+            <a
+              href={`tel:${SUPPORT_PHONE.replace(/\s/g, "")}`}
+              className="mt-4 flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700"
+            >
+              <Phone className="size-4" /> {SUPPORT_PHONE}
+            </a>
+            <button
+              type="button"
+              onClick={() => setShowCallUs(false)}
+              className="mt-2 w-full py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
 
       {showSubscription && session && session.role !== "admin" && (
         <SubscriptionManager

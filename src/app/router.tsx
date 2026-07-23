@@ -12,6 +12,10 @@ import { AuctionListPage } from "../pages/AuctionList";
 import { AuctionDetailPage } from "../pages/AuctionDetail";
 import { MobilePreviewPage } from "../pages/MobilePreview";
 import { ChatsPage } from "../pages/Chats";
+import { AboutPage } from "../pages/About";
+import { ContactPage } from "../pages/Contact";
+import { HelpPage } from "../pages/Help";
+import { SitemapPage } from "../pages/Sitemap";
 
 function HashRedirect() {
   const navigate = useNavigate();
@@ -108,6 +112,10 @@ export function AppRoutes() {
           <Route path="/listing/:id" element={<DetailRoute />} />
           <Route path="/auctions" element={<AuctionListPage />} />
           <Route path="/auctions/:id" element={<AuctionDetailRoute />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/help" element={<HelpPage />} />
+          <Route path="/sitemap" element={<SitemapPage />} />
           <Route path="/preview/android" element={<MobilePreviewPage platform="android" />} />
           <Route path="/preview/ios" element={<MobilePreviewPage platform="ios" />} />
           <Route element={<RequireAuth />}>

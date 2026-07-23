@@ -40,6 +40,22 @@ export function LandingPage() {
       navigate("/chats");
       return;
     }
+    if (p === "about") {
+      navigate("/about");
+      return;
+    }
+    if (p === "contact") {
+      navigate(ps.reason ? `/contact?reason=${encodeURIComponent(ps.reason)}` : "/contact");
+      return;
+    }
+    if (p === "help") {
+      navigate("/help");
+      return;
+    }
+    if (p === "sitemap") {
+      navigate("/sitemap");
+      return;
+    }
     if (p === "mobile-android") {
       navigate("/preview/android");
       return;
