@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   ArrowLeft, Mail, Lock, User, Building2, ShieldCheck, FileText, Receipt, Eye, EyeOff,
-  Phone, MapPin, IdCard, Calendar, Landmark,
+  Phone, MapPin, IdCard, Calendar, Landmark, Upload, X, CheckCircle2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -33,6 +33,12 @@ type Props = {
       companyLegalName: string;
       tradeName: string;
       tradeLicenseNumber: string;
+      tradeLicenseDocument?: {
+        fileName: string;
+        mimeType: string;
+        dataUrl: string;
+        uploadedAt: string;
+      };
       licenseIssuingAuthority: string;
       licenseExpiry: string;
       vatTrn?: string;
@@ -145,6 +151,13 @@ export function Auth({ onBack, onSignIn, onSignUp, onOpenLegal }: Props) {
   const [planId, setPlanId] = useState<PlanId>(defaultPlanForRole("customer"));
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [showPassword, setShowPassword] = useState(false);
+  const [tlDoc, setTlDoc] = useState<{
+    fileName: string;
+    mimeType: string;
+    dataUrl: string;
+    uploadedAt: string;
+  } | null>(null);
+  const [tlDocError, setTlDocError] = useState<string | undefined>();
 
   const {
     register,
@@ -183,6 +196,49 @@ export function Auth({ onBack, onSignIn, onSignUp, onOpenLegal }: Props) {
     else window.open(`/legal/${doc}`, "_blank", "noopener,noreferrer");
   };
 
+  const MAX_TL_BYTES = 4 * 1024 * 1024; // 4 MB
+
+  const handleTradeLicenseUpload = (files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+    const okType =
+      file.type === "application/pdf" ||
+      file.type.startsWith("image/") ||
+      /\.(pdf|png|jpe?g|webp)$/i.test(file.name);
+    if (!okType) {
+      setTlDocError("Upload a PDF or image (JPG, PNG, WEBP)");
+      setTlDoc(null);
+      return;
+    }
+    if (file.size > MAX_TL_BYTES) {
+      setTlDocError("File must be 4 MB or smaller");
+      setTlDoc(null);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || "");
+      if (!dataUrl.startsWith("data:")) {
+        setTlDocError("Could not read file — try again");
+        setTlDoc(null);
+        return;
+      }
+      setTlDoc({
+        fileName: file.name,
+        mimeType: file.type || "application/octet-stream",
+        dataUrl,
+        uploadedAt: new Date().toISOString(),
+      });
+      setTlDocError(undefined);
+      toast.success("Trade Licence uploaded");
+    };
+    reader.onerror = () => {
+      setTlDocError("Could not read file — try again");
+      setTlDoc(null);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const onSubmit = handleSubmit(async (data) => {
     if (mode === "signin") {
       const res = await onSignIn({ email: data.email, password: data.password });
@@ -196,6 +252,12 @@ export function Auth({ onBack, onSignIn, onSignUp, onOpenLegal }: Props) {
 
     if (!planId) {
       toast.error("Please select a subscription plan");
+      return;
+    }
+
+    if (role === "dealer" && !tlDoc) {
+      setTlDocError("Please upload a copy of your Trade Licence");
+      toast.error("Please upload a copy of your Trade Licence");
       return;
     }
 
@@ -216,6 +278,7 @@ export function Auth({ onBack, onSignIn, onSignUp, onOpenLegal }: Props) {
               companyLegalName: (data.companyLegalName || "").trim(),
               tradeName: (data.tradeName || "").trim(),
               tradeLicenseNumber: (data.tradeLicenseNumber || "").trim(),
+              tradeLicenseDocument: tlDoc || undefined,
               licenseIssuingAuthority: (data.licenseIssuingAuthority || "").trim(),
               licenseExpiry: (data.licenseExpiry || "").trim(),
               vatTrn: (data.vatTrn || "").trim() || undefined,
@@ -245,12 +308,18 @@ export function Auth({ onBack, onSignIn, onSignUp, onOpenLegal }: Props) {
     setPlanId(defaultPlanForRole("customer"));
     setBillingCycle("monthly");
     setShowPassword(false);
+    setTlDoc(null);
+    setTlDocError(undefined);
     reset();
   };
 
   const selectRole = (r: SignupRole) => {
     setRole(r);
     setPlanId(defaultPlanForRole(r));
+    if (r !== "dealer") {
+      setTlDoc(null);
+      setTlDocError(undefined);
+    }
   };
 
   const FieldError = ({ msg }: { msg?: string }) =>
@@ -425,6 +494,43 @@ export function Auth({ onBack, onSignIn, onSignUp, onOpenLegal }: Props) {
                     <FieldError msg={errors[f.key]?.message} />
                   </div>
                 ))}
+
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-slate-700 dark:text-slate-200">Upload Trade Licence (TL) *</p>
+                  {tlDoc ? (
+                    <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50/80 dark:bg-emerald-950/30">
+                      <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate text-emerald-900 dark:text-emerald-100">{tlDoc.fileName}</p>
+                        <p className="text-[11px] text-emerald-700/80 dark:text-emerald-300/80">Ready for KYC review</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setTlDoc(null); setTlDocError(undefined); }}
+                        className="size-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white/70 dark:hover:bg-slate-800"
+                        aria-label="Remove trade licence file"
+                      >
+                        <X className="size-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex items-center justify-center gap-2 w-full px-3 py-3 rounded-xl border-2 border-dashed border-blue-300 dark:border-blue-800 bg-white/70 dark:bg-slate-950/40 text-sm font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer transition">
+                      <Upload className="size-4" />
+                      Upload Trade Licence
+                      <input
+                        type="file"
+                        accept="application/pdf,image/*,.pdf,.png,.jpg,.jpeg,.webp"
+                        className="sr-only"
+                        onChange={(e) => {
+                          handleTradeLicenseUpload(e.target.files);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  )}
+                  <p className="text-[11px] text-slate-500">PDF or image · max 4 MB</p>
+                  <FieldError msg={tlDocError} />
+                </div>
 
                 <div>
                   <div className="relative">

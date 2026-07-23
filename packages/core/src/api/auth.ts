@@ -599,6 +599,9 @@ export async function signup(input: {
         const val = String(k[key] ?? "").trim();
         if (!val) return fail(`${label} is required`);
       }
+      if (!k.tradeLicenseDocument?.dataUrl || !k.tradeLicenseDocument.fileName) {
+        return fail("Please upload a copy of your Trade Licence (PDF or image)");
+      }
       if (!k.declaredAccurate) {
         return fail("You must declare that KYC information is true and accurate");
       }
@@ -615,6 +618,12 @@ export async function signup(input: {
         companyLegalName: k.companyLegalName.trim(),
         tradeName: k.tradeName.trim(),
         tradeLicenseNumber: k.tradeLicenseNumber.trim(),
+        tradeLicenseDocument: {
+          fileName: k.tradeLicenseDocument.fileName.trim(),
+          mimeType: k.tradeLicenseDocument.mimeType || "application/octet-stream",
+          dataUrl: k.tradeLicenseDocument.dataUrl,
+          uploadedAt: k.tradeLicenseDocument.uploadedAt || todayIso,
+        },
         licenseIssuingAuthority: k.licenseIssuingAuthority.trim(),
         licenseExpiry: expiry,
         vatTrn: trn || undefined,

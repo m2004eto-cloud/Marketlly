@@ -48,11 +48,21 @@ export type SessionUser = {
 
 export type KycStatus = "none" | "pending" | "verified" | "rejected";
 
+/** Uploaded trade licence file stored as a data URL (local KYC). */
+export type TradeLicenseDocument = {
+  fileName: string;
+  mimeType: string;
+  dataUrl: string;
+  uploadedAt: string;
+};
+
 /** Dealer KYC profile collected at signup (UAE trade-licence based). */
 export type DealerKycProfile = {
   companyLegalName: string;
   tradeName: string;
   tradeLicenseNumber: string;
+  /** Scanned / photo copy of the trade licence */
+  tradeLicenseDocument?: TradeLicenseDocument;
   licenseIssuingAuthority: string;
   licenseExpiry: string;
   vatTrn?: string;
